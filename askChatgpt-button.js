@@ -29,20 +29,19 @@
   const GPT_BUTTON_NAVBAR_ID = "gpt-button-navbar";
   const FILE_ELEMENT_SELECTOR = ".repos-summary-header";
 
-  const SYSTEM_PROMPT = `Please review the code and - only where improvements can be made - provide feedback on those improvements. 
+  const SYSTEM_PROMPT = `Review the code and - only where improvements can be made - provide feedback on those improvements. 
   Only check the following areas:
    - Correctness: Is the code logically sound and free of bugs?
    - Clarity: Is the code easily readable to a developer who didn't write it?
    - Best Practices: Is the code written in a way that adheres to industry standards and best practices?
    - Speed: Are there any parts of the code that could be optimized for better performance?
    - Security: Are there any potential security vulnerabilities?
-  Any suggestions for refactoring or other improvements are highly appreciated. Use git markdown for replacements if simple.
+  Suggest refactoring or other improvements. If simple, put them in a \`\`\`suggestion <suggestion> \`\`\` tag within the comment body
   Feedback should be polite, professional and encouraging.
   The aim is to educate as well as to flag issues, so examples and explanations of the reasoning behind suggestions are very helpful.
   You are given the diff. Lines starting with + are added and - are removed.  If a line number is followed by another, treat the first as 'before' and the second as 'after'
-  Only analyze the introduced code.
-  Keep your responses short. Compile your feedback in a JSON format: {<afterLineNumber>: <comment>, <afterLineNumber>: <comment>}
-  If you make a code suggestion include it in a \`\`\`suggestion <suggestion> \`\`\`"
+  Only comment on the added lines. Only point out errors, don't praise good practices. Do not nitpick.
+  Keep your responses short. Compile your feedback in a JSON format: {<lineNumber>: <comment>, <lineNumber>: <comment>}
 `;
 
   const ASK_CHATGPT_BUTTON_HTML =
@@ -63,6 +62,52 @@
       API_KEY = prompt("Please enter your OpenAI API key:");
       GM_setValue("apiKey", API_KEY);
     }
+  }
+
+  function estimateGPT4Tokens(text) {
+    // Regular expressions for common contractions and punctuations
+    const contractionRegex = /(\w+\'\w+)|(\w+\'\w*\w+)/g;
+    const punctuationRegex = /[\.,!?;:\(\)\[\]\"\'\-\—\–]/g;
+
+    // Count contractions as single tokens
+    let contractions = (text.match(contractionRegex) || []).length;
+
+    // Remove contractions from text to avoid double counting
+    let processedText = text.replace(contractionRegex, " ");
+
+    // Splitting the text into words and punctuations as tokens
+    let wordsAndPunctuations = processedText.split(/\s+/).filter(Boolean);
+    let punctuationCount = (processedText.match(punctuationRegex) || []).length;
+
+    return (
+      (wordsAndPunctuations.length + punctuationCount - contractions) * 1.25
+    );
+  }
+
+  function estimateGPT4TokensForJSON(jsonString) {
+    // Regular expression for JSON special characters and string literals
+    const specialCharsRegex = /[\{\}\[\],:]/g;
+    const stringLiteralRegex = /"(?:\\.|[^"\\])*"/g;
+
+    // Counting special JSON characters (brackets, braces, commas, colons) as separate tokens
+    let specialCharCount = (jsonString.match(specialCharsRegex) || []).length;
+
+    // Extracting and counting string literals
+    let stringLiterals = jsonString.match(stringLiteralRegex) || [];
+    let stringLiteralTokens = stringLiterals.reduce(
+      (count, str) =>
+        count +
+        str.split(/\s+|(?=[,.!?;:])|(?<=[,.!?;:])/).filter(Boolean).length,
+      0
+    );
+
+    // Removing string literals from the JSON string to avoid double counting
+    let processedJSON = jsonString.replace(stringLiteralRegex, " ");
+
+    // Splitting the remaining text into potential tokens
+    let otherTokens = processedJSON.split(/\s+/).filter(Boolean).length;
+
+    return (specialCharCount + stringLiteralTokens + otherTokens) * 1.25;
   }
 
   function queryChatGPT(prompt) {
@@ -126,10 +171,14 @@
   }
 
   async function sendFileCodeToChatGPT(code) {
-    const response = await queryChatGPT(JSON.stringify(code));
+    const codeJson = JSON.stringify(code);
+    const response = await queryChatGPT(codeJson);
 
     const completionTokens = response.completionTokens;
     const promptTokens = response.promptTokens;
+
+    const estimatedTokens =
+      estimateGPT4Tokens(SYSTEM_PROMPT) + estimateGPT4TokensForJSON(codeJson);
 
     const completionCost =
       (completionTokens / 1000) * GPT_MODEL_4.cost.completion;
@@ -140,7 +189,7 @@
       3
     )}\nPrompt: $${promptCost.toFixed(
       3
-    )} (${promptTokens} tokens)\nCompletion: $${completionCost.toFixed(
+    )} (${promptTokens} tokens | estimated: ${estimatedTokens})\nCompletion: $${completionCost.toFixed(
       3
     )} (${completionTokens} tokens)`;
 
@@ -251,12 +300,18 @@
     return fileData;
   }
 
+  function findElementByInnerText(parentElement, innerText) {
+    return Array.from(parentElement.querySelectorAll("*")).find(
+      (el) => el.innerText === innerText
+    );
+  }
+
   function addCommentToLine(fileElement, line, comment) {
     // console.log(`adding comment ${line}:${comment}`);
 
     const codeElement = getSingleColumnElement(fileElement);
-    const numberElement = codeElement.querySelector(`[data-line="${line}"]`);
-    const lineElement = numberElement.parentElement.parentElement.parentElement;
+    const numberElement = findElementByInnerText(codeElement, line);
+    const lineElement = numberElement.parentElement;
 
     const addCommentElement = lineElement.querySelector(".screen-reader-only");
     addCommentElement.click();
@@ -375,7 +430,7 @@
     sendFileCodeToChatGPT(code)
       .then((response) => {
         const comments = response;
-        // console.log("gpt results", comments);
+        console.log("gpt results", comments);
 
         addCommentsToFile(fileElement, comments).then(() => {
           enableButton(this);
