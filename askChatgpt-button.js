@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure Pipelines PR AskChatGPT
-// @namespace    http://tampermonkey.net/
+// @namespace    http://piu.piuson.com/
 // @version      1.0
 // @description  Ask ChatGPT to review files on a PR in Azure Pipelines
 // @author       Piu Piuson
