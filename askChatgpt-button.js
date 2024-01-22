@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Azure Pipelines PR AskChatGPT
 // @namespace    http://piu.piuson.com/
-// @version      1.0.1
+// @version      1.0.2
 // @description  Ask ChatGPT to review files on a PR in Azure Pipelines
 // @author       Piu Piuson
 // @downloadURL  https://raw.githubusercontent.com/PiuPiuson/azure-pipelines-PR-AskChatGPT/main/askChatgpt-button.js
@@ -41,7 +41,8 @@
   The aim is to educate as well as to flag issues, so examples and explanations of the reasoning behind suggestions are very helpful.
   You are given the diff. Lines starting with + are added and - are removed.  If a line number is followed by another, treat the first as 'before' and the second as 'after'
   Only analyze the introduced code.
-  Keep your responses short. Compile your feedback in a JSON format: {<afterLineNumber>: <comment>, <afterLineNumber>: <comment>}"
+  Keep your responses short. Compile your feedback in a JSON format: {<afterLineNumber>: <comment>, <afterLineNumber>: <comment>}
+  If you make a code suggestion include it in a \`\`\`suggestion <suggestion> \`\`\`"
 `;
 
   const ASK_CHATGPT_BUTTON_HTML =
@@ -58,7 +59,7 @@
   }
 
   function configureApiKey() {
-    while (!API_KEY) {
+    if (!API_KEY) {
       API_KEY = prompt("Please enter your OpenAI API key:");
       GM_setValue("apiKey", API_KEY);
     }
@@ -344,11 +345,6 @@
     });
   }
 
-  function onPageLoad() {
-    // addGPTButtonToNavBar();
-    addGPTButtonToAllFiles();
-  }
-
   function disableButton(buttonElement) {
     buttonElement.disabled = true;
     buttonElement.classList.add("disabled");
@@ -386,43 +382,35 @@
         });
       })
       .catch((e) => console.log(e));
-
-    //addCommentsToFile('/server/Domain/Models/WellClassifications/WellClassificationValueObject.cs', comments).then(() => {
-    //  console.log('done');
-    //});
-    //addCommentToLine('/server/Domain/Models/WellClassifications/WellClassificationValueObject.cs', 40, "testb");
-    //addCommentToLine('/server/Domain/Models/WellClassifications/WellClassificationValueObject.cs', 53, "testc");
   }
 
-  //   // Create a MutationObserver to monitor changes to the page
-  //   var observer = new MutationObserver(function (mutations) {
-  //     mutations.forEach(function (mutation) {
-  //       if (mutation.type === "childList" && mutation.addedNodes.length) {
-  //         for (var i = 0; i < mutation.addedNodes.length; i++) {
-  //           var addedNode = mutation.addedNodes[i];
+  function startPageObserver() {
+    const observerConfig = { childList: true, subtree: true };
+    const observerTarget = document.body;
 
-  //           // Check if the added node or any of its descendants have the .secondary-text class
-  //           if (
-  //             addedNode.nodeType === Node.ELEMENT_NODE &&
-  //             (addedNode.classList.contains("secondary-text") ||
-  //               addedNode.querySelector(".secondary-text"))
-  //           ) {
-  //             extractCode();
-  //             break; // Break the loop after finding the first match
-  //           }
-  //         }
-  //       }
-  //     });
-  //   });
+    // Create a MutationObserver to monitor changes to the page
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === "childList" && mutation.addedNodes.length) {
+          // Check if we are in the files page and add the button
+          const changeText = mutation.addedNodes[0].innerText;
+          if (changeText?.includes("All Changes")) {
+            addGPTButtonToAllFiles();
+          }
+        }
+      });
+    });
 
-  //   // Options for the observer (which parts of the DOM to monitor)
-  //   var config = { childList: true, subtree: true };
+    observer.observe(observerTarget, observerConfig);
+  }
 
-  //   // Start observing the target node for configured mutations
-  //   var targetNode = document.body; // Adjust if more specific targeting is needed
-  //   // observer.observe(targetNode, config);
+  function onPageLoad() {
+    // addGPTButtonToNavBar();
+    addGPTButtonToAllFiles();
+  }
 
   configureApiKey();
+  startPageObserver();
   // Also run the function when the page initially loads
   window.addEventListener("load", onPageLoad);
 })();
