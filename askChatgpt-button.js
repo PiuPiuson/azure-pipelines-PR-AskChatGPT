@@ -4,6 +4,8 @@
 // @version      1.0
 // @description  Ask ChatGPT to review files on a PR in Azure Pipelines
 // @author       Piu Piuson
+// @downloadURL  https://raw.githubusercontent.com/PiuPiuson/azure-pipelines-PR-AskChatGPT/main/askChatgpt-button.js
+// @updateURL    https://raw.githubusercontent.com/PiuPiuson/azure-pipelines-PR-AskChatGPT/main/askChatgpt-button.js
 // @match        https://dev.azure.com/*/pullrequest/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=azure.com
 // @grant        GM_xmlhttpRequest
