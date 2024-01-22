@@ -41,6 +41,8 @@
   const ASK_CHATGPT_BUTTON_HTML =
     '<div class="repos-pr-header-complete-button bolt-split-button flex-stretch inline-flex-row"><button class="ask-chatgpt bolt-split-button-main bolt-button bolt-icon-button enabled bolt-focus-treatment" data-is-focusable="true" role="button" tabindex="0" type="button" data-focuszone="focuszone-5"></span><span class="bolt-button-text body-m">Ask ChatGPT</span></button></div>';
 
+  let API_KEY = GM_getValue("apiKey");
+
   function generateUUID() {
     return "axxxxxxxxxxxxxxxxxxxx".replace(/[xy]/g, function (c) {
       var r = (Math.random() * 16) | 0,
@@ -50,11 +52,9 @@
   }
 
   function configureApiKey() {
-    var API_KEY = GM_getValue("apiKey");
-
     while (!API_KEY) {
       API_KEY = prompt("Please enter your OpenAI API key:");
-      GM_setValue("apiKey", apiKey);
+      GM_setValue("apiKey", API_KEY);
     }
   }
 
