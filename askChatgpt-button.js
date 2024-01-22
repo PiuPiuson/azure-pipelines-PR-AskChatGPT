@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Azure Pipelines PR AskChatGPT
 // @namespace    http://piu.piuson.com/
-// @version      1.0
+// @version      1.0.1
 // @description  Ask ChatGPT to review files on a PR in Azure Pipelines
 // @author       Piu Piuson
 // @downloadURL  https://raw.githubusercontent.com/PiuPiuson/azure-pipelines-PR-AskChatGPT/main/askChatgpt-button.js
@@ -16,8 +16,14 @@
 (function () {
   "use strict";
 
-  const GPT_MODEL_4 = "gpt-4-1106-preview";
-  const GPT_MODEL_35 = "gpt-3.5-turbo-1106";
+  const GPT_MODEL_4 = {
+    name: "gpt-4-1106-preview",
+    cost: {
+      prompt: 0.01,
+      completion: 0.03,
+    },
+  };
+
   const GPT_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 
   const GPT_BUTTON_NAVBAR_ID = "gpt-button-navbar";
@@ -61,7 +67,7 @@
   function queryChatGPT(prompt) {
     return new Promise((resolve, reject) => {
       const data = {
-        model: GPT_MODEL_4,
+        model: GPT_MODEL_4.name,
         max_tokens: 4096,
         temperature: 0.8,
         response_format: {
@@ -124,15 +130,18 @@
     const completionTokens = response.completionTokens;
     const promptTokens = response.promptTokens;
 
-    const completionCost = (completionTokens / 1000) * 0.01;
-    const promptCost = (promptTokens / 1000) * 0.02;
+    const completionCost =
+      (completionTokens / 1000) * GPT_MODEL_4.cost.completion;
+    const promptCost = (promptTokens / 1000) * GPT_MODEL_4.cost.prompt;
     const totalCost = completionCost + promptCost;
 
-    const costMessage = `Cost: $${totalCost.toFixed(
+    const costMessage = `Request Cost: $${totalCost.toFixed(
       3
-    )} (Prompt: ${promptTokens} - $${promptCost.toFixed(
+    )}\nPrompt: $${promptCost.toFixed(
       3
-    )} | Completion: ${completionTokens}, $${completionCost.toFixed(3)})`;
+    )} (${promptTokens} tokens)\nCompletion: $${completionCost.toFixed(
+      3
+    )} (${completionTokens} tokens)`;
 
     console.log(costMessage);
     alert(costMessage);
