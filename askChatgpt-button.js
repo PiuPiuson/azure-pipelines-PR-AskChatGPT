@@ -407,10 +407,9 @@
   function onPageLoad() {
     // addGPTButtonToNavBar();
     addGPTButtonToAllFiles();
+    configureApiKey();
+    startPageObserver();
   }
 
-  configureApiKey();
-  startPageObserver();
-  // Also run the function when the page initially loads
   window.addEventListener("load", onPageLoad);
 })();
