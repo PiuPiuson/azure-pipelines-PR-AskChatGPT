@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Azure Pipelines PR AskChatGPT
 // @namespace    http://piu.piuson.com/
-// @version      1.0.2
+// @version      1.0.3
 // @description  Ask ChatGPT to review files on a PR in Azure Pipelines
 // @author       Piu Piuson
 // @downloadURL  https://raw.githubusercontent.com/PiuPiuson/azure-pipelines-PR-AskChatGPT/main/askChatgpt-button.js
@@ -45,7 +45,7 @@
 `;
 
   const ASK_CHATGPT_BUTTON_HTML =
-    '<div class="repos-pr-header-complete-button bolt-split-button flex-stretch inline-flex-row"><button class="ask-chatgpt bolt-split-button-main bolt-button bolt-icon-button enabled bolt-focus-treatment" data-is-focusable="true" role="button" tabindex="0" type="button" data-focuszone="focuszone-5"></span><span class="bolt-button-text body-m">Ask ChatGPT</span></button></div>';
+    '<div class="ask-chatgpt-button repos-pr-header-complete-button bolt-split-button flex-stretch inline-flex-row"><button class="ask-chatgpt bolt-split-button-main bolt-button bolt-icon-button enabled bolt-focus-treatment" data-is-focusable="true" role="button" tabindex="0" type="button" data-focuszone="focuszone-5"></span><span class="bolt-button-text body-m">Ask ChatGPT</span></button></div>';
 
   let API_KEY = GM_getValue("apiKey");
 
@@ -64,7 +64,7 @@
     }
   }
 
-  function estimateGPT4Tokens(text) {
+  function estimateGPT4TokensForText(text) {
     // Regular expressions for common contractions and punctuations
     const contractionRegex = /(\w+\'\w+)|(\w+\'\w*\w+)/g;
     const punctuationRegex = /[\.,!?;:\(\)\[\]\"\'\-\—\–]/g;
@@ -85,6 +85,9 @@
   }
 
   function estimateGPT4TokensForJSON(jsonString) {
+    if (!jsonString) {
+      return 0;
+    }
     // Regular expression for JSON special characters and string literals
     const specialCharsRegex = /[\{\}\[\],:]/g;
     const stringLiteralRegex = /"(?:\\.|[^"\\])*"/g;
@@ -108,6 +111,14 @@
     let otherTokens = processedJSON.split(/\s+/).filter(Boolean).length;
 
     return (specialCharCount + stringLiteralTokens + otherTokens) * 1.25;
+  }
+
+  function estimateGPTRequestCostFromCode(codeJson) {
+    const promptTokens = estimateGPT4TokensForText(SYSTEM_PROMPT);
+    const codeTokens = estimateGPT4TokensForJSON(codeJson);
+
+    const totalTokens = promptTokens + codeTokens;
+    return (totalTokens / 1000) * GPT_MODEL_4.cost.prompt;
   }
 
   function queryChatGPT(prompt) {
@@ -178,7 +189,8 @@
     const promptTokens = response.promptTokens;
 
     const estimatedTokens =
-      estimateGPT4Tokens(SYSTEM_PROMPT) + estimateGPT4TokensForJSON(codeJson);
+      estimateGPT4TokensForText(SYSTEM_PROMPT) +
+      estimateGPT4TokensForJSON(codeJson);
 
     const completionCost =
       (completionTokens / 1000) * GPT_MODEL_4.cost.completion;
@@ -272,7 +284,7 @@
     return childElement.closest(FILE_ELEMENT_SELECTOR);
   }
 
-  function extractCodeFromFile(fileElement) {
+  function extractCodeFromFileElement(fileElement) {
     const codeElement = getSingleColumnElement(fileElement);
     if (!codeElement) {
       return;
@@ -289,7 +301,7 @@
 
     fileElements.forEach(function (fileElement) {
       const fileName = getFileName(fileElement);
-      const code = extractCodeFromFile(fileElement);
+      const code = extractCodeFromFileElement(fileElement);
 
       fileData.push({
         fileName: fileName,
@@ -357,12 +369,19 @@
     });
   }
 
-  function createGPTButton(id) {
+  function createGPTButton(id, price = 0) {
     const newElement = document
       .createRange()
       .createContextualFragment(ASK_CHATGPT_BUTTON_HTML);
 
     newElement.firstChild.firstChild.id = id;
+
+    if (price > 0) {
+      price += 0.01;
+      price = price.toFixed(2);
+
+      newElement.firstChild.firstChild.innerText += ` ($${price})`;
+    }
 
     return newElement;
   }
@@ -380,12 +399,26 @@
     button.addEventListener("click", onGPTButtonClick);
   }
 
+  function removeGPTButtonFromFile(fileElement) {
+    const button = fileElement.querySelector(".ask-chatgpt-button");
+    button?.remove();
+  }
+
   function addGPTButtonToFile(fileElement) {
+    removeGPTButtonFromFile(fileElement);
     const navBar = fileElement.querySelector(".flex-row.flex-grow.justify-end");
 
     const buttonId = generateUUID();
 
-    navBar.insertBefore(createGPTButton(buttonId), navBar.children[0]);
+    const code = extractCodeFromFileElement(fileElement);
+    const codeJson = JSON.stringify(code);
+
+    const estimatedCost = estimateGPTRequestCostFromCode(codeJson);
+
+    navBar.insertBefore(
+      createGPTButton(buttonId, estimatedCost),
+      navBar.children[0]
+    );
 
     const button = navBar.querySelector(`#${buttonId}`);
     button.style.marginRight = "10px";
@@ -423,7 +456,7 @@
       return;
     }
     const fileElement = getParentFileElement(this);
-    const code = extractCodeFromFile(fileElement);
+    const code = extractCodeFromFileElement(fileElement);
 
     // console.log(code);
 
@@ -446,11 +479,16 @@
     // Create a MutationObserver to monitor changes to the page
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
-        if (mutation.type === "childList" && mutation.addedNodes.length) {
-          // Check if we are in the files page and add the button
-          const changeText = mutation.addedNodes[0].innerText;
-          if (changeText?.includes("All Changes")) {
-            addGPTButtonToAllFiles();
+        if (mutation.type === "childList") {
+          if (!mutation.addedNodes.length) {
+            // Diff for a file has been updated
+            if (
+              mutation.target.classList.contains("change-summary-card-content")
+            ) {
+              const fileElement = mutation.target.parentElement.parentElement;
+              addGPTButtonToFile(fileElement);
+              // console.log(mutation.target.parentElement);
+            }
           }
         }
       });
