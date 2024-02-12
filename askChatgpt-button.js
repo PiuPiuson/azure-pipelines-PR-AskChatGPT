@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Azure Pipelines PR AskChatGPT
 // @namespace    http://piu.piuson.com/
-// @version      1.0.3
+// @version      1.0.4
 // @description  Ask ChatGPT to review files on a PR in Azure Pipelines
 // @author       Piu Piuson
 // @downloadURL  https://raw.githubusercontent.com/PiuPiuson/azure-pipelines-PR-AskChatGPT/main/askChatgpt-button.js
@@ -17,10 +17,10 @@
   "use strict";
 
   const GPT_MODEL_4 = {
-    name: "gpt-4-1106-preview",
+    name: "gpt-4-turbo-preview",
     cost: {
-      prompt: 0.01,
-      completion: 0.03,
+      prompt: 0.01, // Cost per 1000 tokens
+      completion: 0.03, // Cost per 1000 tokens
     },
   };
 
