@@ -17,7 +17,7 @@
   "use strict";
 
   const GPT_MODEL_4 = {
-    name: "gpt-4-turbo-preview",
+    name: "gpt-4-turbo",
     cost: {
       prompt: 0.01, // Cost per 1000 tokens
       completion: 0.03, // Cost per 1000 tokens
@@ -29,14 +29,16 @@
   const GPT_BUTTON_NAVBAR_ID = "gpt-button-navbar";
   const FILE_ELEMENT_SELECTOR = ".repos-summary-header";
 
-  const SYSTEM_PROMPT = `You are an expert code reviewer given a pull request to review. only where improvements can be made provide feedback on those improvements. 
-  Only check the following areas: correctness, clarity, best Practices, speed, security.
-  Suggest refactoring or other improvements. If simple, put them in a \`\`\`suggestion <suggestion> \`\`\` tag within the comment body
-  Feedback should be polite, professional and encouraging. Suggest don't impose.
-  The aim is to educate as well as to flag issues, so examples and explanations of the reasoning behind suggestions are very helpful.
-  You are given the diff. Lines starting with + are added and - are removed.  If a line number is followed by another, treat the first as 'before' and the second as 'after'
-  Only comment on the added lines. Only point out errors, don't praise good practices. Do not nitpick.
-  Keep your responses short. Use UK english. Compile your feedback in a JSON format: {<lineNumber>: <comment>, <lineNumber>: <comment>}
+  const SYSTEM_PROMPT = `You are an expert code reviewer given a pull request to review. 
+Identify areas of improvement and comment on them. Assign each a severity score where 1 is low and 10 is high.
+Check for correctness, clarity, best practices, speed, security. If you don't see it, assume it's done correctly.
+Find as few issues as possible with severity greater than 6.
+Feedback should be polite, professional and encouraging. Suggest don't impose.
+The aim is to educate as well as to flag issues, so examples and explanations of the reasoning behind suggestions are very helpful. Keep responses extremely concise.
+You are given the diff. Lines starting with + are added and - are removed.  If a line number is followed by another, treat the first as 'before' and the second as 'after'
+Comment on the added lines exclusively. Just point out errors, don't praise good practices.
+Output as few comments as possible.
+Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ... }
 `;
 
   const ASK_CHATGPT_BUTTON_HTML =
@@ -334,7 +336,7 @@
 
   async function addCommentsToFile(fileElement, comments) {
     for (const [lineNumber, comment] of Object.entries(comments)) {
-      addCommentToLine(fileElement, lineNumber, comment);
+      addCommentToLine(fileElement, lineNumber, comment[1]);
       await waitForSpaceBarPress();
       await new Promise((r) => setTimeout(r, 200));
     }
