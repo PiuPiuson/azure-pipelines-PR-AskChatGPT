@@ -19,8 +19,8 @@
   const GPT_MODEL_4 = {
     name: "gpt-4-turbo",
     cost: {
-      prompt: 0.01, // Cost per 1000 tokens
-      completion: 0.03, // Cost per 1000 tokens
+      prompt: 10, // Cost per 1M tokens
+      completion: 30, // Cost per 1M tokens
     },
   };
 
@@ -117,7 +117,7 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
     const codeTokens = estimateGPT4TokensForJSON(codeJson);
 
     const totalTokens = promptTokens + codeTokens;
-    return (totalTokens / 1000) * GPT_MODEL_4.cost.prompt;
+    return (totalTokens / 1000000) * GPT_MODEL_4.cost.prompt;
   }
 
   function queryChatGPT(prompt) {
@@ -192,8 +192,8 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
       estimateGPT4TokensForJSON(codeJson);
 
     const completionCost =
-      (completionTokens / 1000) * GPT_MODEL_4.cost.completion;
-    const promptCost = (promptTokens / 1000) * GPT_MODEL_4.cost.prompt;
+      (completionTokens / 1000000) * GPT_MODEL_4.cost.completion;
+    const promptCost = (promptTokens / 1000000) * GPT_MODEL_4.cost.prompt;
     const totalCost = completionCost + promptCost;
 
     const costMessage = `Request Cost: $${totalCost.toFixed(
