@@ -46,6 +46,8 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
 
   let API_KEY = GM_getValue("apiKey");
 
+  let cachedResponses = {};
+
   function generateUUID() {
     return "axxxxxxxxxxxxxxxxxxxx".replace(/[xy]/g, function (c) {
       var r = (Math.random() * 16) | 0,
@@ -98,7 +100,7 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
       (count, str) =>
         count +
         str.split(/\s+|(?=[,.!?;:])|(?<=[,.!?;:])/).filter(Boolean).length,
-      0
+      0,
     );
 
     // Removing string literals from the JSON string to avoid double counting
@@ -195,11 +197,11 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
     const totalCost = completionCost + promptCost;
 
     const costMessage = `Request Cost: $${totalCost.toFixed(
-      3
+      3,
     )}\nPrompt: $${promptCost.toFixed(
-      3
+      3,
     )} (${promptTokens} tokens | estimated: ${estimatedTokens})\nCompletion: $${completionCost.toFixed(
-      3
+      3,
     )} (${completionTokens} tokens)`;
 
     console.log(costMessage);
@@ -219,7 +221,7 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
 
     for (const fileElement of fileElements) {
       const elementFileName = fileElement.querySelector(
-        ".secondary-text.text-ellipsis"
+        ".secondary-text.text-ellipsis",
       ).innerText;
 
       if (elementFileName === fileName) {
@@ -232,7 +234,7 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
 
   function extractCodeFromColumn(columnElement) {
     const changes = columnElement.querySelectorAll(
-      ".repos-diff-contents-row.monospaced-text"
+      ".repos-diff-contents-row.monospaced-text",
     );
 
     const columnChanges = Array.from(changes).map((change) => {
@@ -316,7 +318,7 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
 
   function findLastElementByInnerText(parentElement, innerText) {
     const elements = Array.from(parentElement.querySelectorAll("*")).filter(
-      (el) => el.innerText === innerText
+      (el) => el.innerText === innerText,
     );
     return elements[elements.length - 1];
   }
@@ -336,7 +338,7 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
     setTimeout(() => {
       const commentElement = lineElement.nextElementSibling;
       const textArea = commentElement.querySelector(
-        "[id^='__bolt-textfield-input']"
+        "[id^='__bolt-textfield-input']",
       );
       textArea.value = comment;
     }, 200);
@@ -393,7 +395,7 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
 
   function addGPTButtonToNavBar() {
     const navBar = document.querySelector(
-      ".flex-row.rhythm-horizontal-8.flex-center.flex-grow"
+      ".flex-row.rhythm-horizontal-8.flex-center.flex-grow",
     );
 
     const buttonId = GPT_BUTTON_NAVBAR_ID;
@@ -422,7 +424,7 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
 
     navBar.insertBefore(
       createGPTButton(buttonId, estimatedCost),
-      navBar.children[0]
+      navBar.children[0],
     );
 
     const button = navBar.querySelector(`#${buttonId}`);
@@ -458,15 +460,26 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
       return;
     }
     const fileElement = getParentFileElement(this);
+    const fileName = getFileName(fileElement);
     const code = extractCodeFromFileElement(fileElement);
 
-    console.log(code);
+    // console.log(code);
+
+    if (cachedResponses[fileName]) {
+      console.log("Found cached comments, using them.");
+      addCommentsToFile(fileElement, cachedResponses[fileName]).then(() => {
+        enableButton(this);
+      });
+
+      return;
+    }
 
     sendFileCodeToChatGPT(code)
       .then((response) => {
         const comments = response;
         console.log("gpt results", comments);
 
+        cachedResponses[fileName] = comments;
         addCommentsToFile(fileElement, comments).then(() => {
           enableButton(this);
         });
