@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Azure Pipelines PR AskChatGPT
 // @namespace    http://piu.piuson.com/
-// @version      1.1.0
+// @version      1.1.1
 // @description  Ask ChatGPT to review files on a PR in Azure Pipelines
 // @author       Piu Piuson
 // @downloadURL  https://raw.githubusercontent.com/PiuPiuson/azure-pipelines-PR-AskChatGPT/main/askChatgpt-button.js
@@ -323,14 +323,23 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
     return elements[elements.length - 1];
   }
 
+  function getLineElementFromNumber(codeElement, lineNumber) {
+    const numberElements = codeElement.querySelectorAll('span.padding-horizontal-8.text-right.secondary-text[aria-hidden="true"][role="cell"]');
+
+    for (const element of numberElements) {
+      const lineNumberElement = element.querySelector('.repos-line-number');
+      if (lineNumberElement && lineNumberElement.dataset.line === String(lineNumber)) {
+        return element.parentElement;
+      }
+    }
+  }
+
+
   function addCommentToLine(fileElement, line, comment) {
     // console.log(`adding comment ${line}:${comment}`);
 
     const codeElement = getSingleColumnElement(fileElement);
-    const numberElement = findLastElementByInnerText(codeElement, line);
-    console.log(numberElement);
-    const lineElement = numberElement.parentElement.parentElement;
-    console.log(lineElement);
+    const lineElement = getLineElementFromNumber(codeElement, line);
 
     const addCommentElement = lineElement.querySelector(".screen-reader-only");
     addCommentElement.click();
@@ -456,9 +465,10 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
     disableButton(this);
 
     if (this.id === GPT_BUTTON_NAVBAR_ID) {
-      console.log("Navbar!");
+      // console.log("Navbar!");
       return;
     }
+
     const fileElement = getParentFileElement(this);
     const fileName = getFileName(fileElement);
     const code = extractCodeFromFileElement(fileElement);
@@ -477,7 +487,7 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
     sendFileCodeToChatGPT(code)
       .then((response) => {
         const comments = response;
-        console.log("gpt results", comments);
+        // console.log("gpt results", comments);
 
         cachedResponses[fileName] = comments;
         addCommentsToFile(fileElement, comments).then(() => {
