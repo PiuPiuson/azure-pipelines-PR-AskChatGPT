@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Azure Pipelines PR AskChatGPT
 // @namespace    http://piu.piuson.com/
-// @version      1.0.4
+// @version      1.1.0
 // @description  Ask ChatGPT to review files on a PR in Azure Pipelines
 // @author       Piu Piuson
 // @downloadURL  https://raw.githubusercontent.com/PiuPiuson/azure-pipelines-PR-AskChatGPT/main/askChatgpt-button.js
@@ -31,14 +31,14 @@
 
   const SYSTEM_PROMPT = `You are an expert code reviewer given a pull request to review. 
 Identify areas of improvement and comment on them. Assign each a severity score where 1 is low and 10 is high.
-Check for correctness, clarity, best practices, speed, security. If you don't see it, assume it's done correctly.
+Check for correctness, clarity, best practices, speed and security. If you don't see it, assume it's done correctly.
 Find as few issues as possible with severity greater than 6.
 Feedback should be polite, professional and encouraging. Suggest don't impose.
-The aim is to educate as well as to flag issues, so examples and explanations of the reasoning behind suggestions are very helpful. Keep responses extremely concise.
-You are given the diff. Lines starting with + are added and - are removed.  If a line number is followed by another, treat the first as 'before' and the second as 'after'
-Comment on the added lines exclusively. Just point out errors, don't praise good practices.
+The aim is to educate, so examples and explanations of the reasoning behind suggestions are very helpful. 
+Keep responses extremely concise.
+Only comment on lines beginning with '+'. Just point out errors, don't praise good practices.
 Output as few comments as possible.
-Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ... }
+Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
 `;
 
   const ASK_CHATGPT_BUTTON_HTML =
@@ -243,14 +243,19 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ... }
       const lineNumber = change.querySelector(".secondary-text").innerText;
       let code = change.querySelector(".repos-line-content").innerText;
 
-      if (code.trim() === "") {
+      code = code.trim();
+
+      if (code === "") {
         return;
       }
 
       if (code.startsWith("Plus")) {
-        code = code.replace("Plus ", "+");
+        code = code.replace("Plus", "");
+        code = code.trim();
+        code = "+ " + code;
       } else if (code.startsWith("Minus")) {
-        code = code.replace("Minus ", "-");
+        // Don't send the removed diff
+        return;
       } else {
         code = "  " + code;
       }
@@ -258,7 +263,7 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ... }
       return { [lineNumber]: code };
     }, {}); // Initialize the accumulator as an empty object
 
-    return columnChanges;
+    return columnChanges.filter((change) => change !== undefined);
   }
 
   function getBeforeColumn(fileElement) {
@@ -309,18 +314,21 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ... }
     return fileData;
   }
 
-  function findElementByInnerText(parentElement, innerText) {
-    return Array.from(parentElement.querySelectorAll("*")).find(
+  function findLastElementByInnerText(parentElement, innerText) {
+    const elements = Array.from(parentElement.querySelectorAll("*")).filter(
       (el) => el.innerText === innerText
     );
+    return elements[elements.length - 1];
   }
 
   function addCommentToLine(fileElement, line, comment) {
     // console.log(`adding comment ${line}:${comment}`);
 
     const codeElement = getSingleColumnElement(fileElement);
-    const numberElement = findElementByInnerText(codeElement, line);
-    const lineElement = numberElement.parentElement;
+    const numberElement = findLastElementByInnerText(codeElement, line);
+    console.log(numberElement);
+    const lineElement = numberElement.parentElement.parentElement;
+    console.log(lineElement);
 
     const addCommentElement = lineElement.querySelector(".screen-reader-only");
     addCommentElement.click();
@@ -443,9 +451,6 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ... }
   }
 
   function onGPTButtonClick() {
-    // const code = extractCode();
-    // console.log(JSON.stringify(code));
-
     disableButton(this);
 
     if (this.id === GPT_BUTTON_NAVBAR_ID) {
@@ -455,7 +460,7 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ... }
     const fileElement = getParentFileElement(this);
     const code = extractCodeFromFileElement(fileElement);
 
-    // console.log(code);
+    console.log(code);
 
     sendFileCodeToChatGPT(code)
       .then((response) => {
