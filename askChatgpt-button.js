@@ -324,7 +324,12 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
   }
 
   function getLineElementFromNumber(codeElement, lineNumber) {
-    const numberElements = codeElement.querySelectorAll('span.padding-horizontal-8.text-right.secondary-text[aria-hidden="true"][role="cell"]');
+    let numberElements = codeElement.querySelectorAll('span.padding-horizontal-8.text-right.secondary-text[aria-hidden="true"][role="cell"]');
+
+    // Case where there's only one column with numbers (eg. new file)
+    if (numberElements.length === 0) {
+      numberElements = codeElement.querySelectorAll('span.padding-horizontal-8.text-right.secondary-text[role="cell"]');
+    }
 
     for (const element of numberElements) {
       const lineNumberElement = element.querySelector('.repos-line-number');
