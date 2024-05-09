@@ -13,7 +13,6 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
-// @require      file:///Users/omp/Nextcloud/Programming/Projects/TamperMonkey/azure-pipelines-PR-AskChatGPT/myrge-pr-ping.js
 // ==/UserScript==
 
 const DEFAULT_PR_INTERVAL = 3 * 60;
