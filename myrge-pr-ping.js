@@ -23,12 +23,6 @@ const LAST_PR_TIME_KEY = "last-pr-time";
 const DING_URL_KEY = "ding-url";
 const PR_INTERVAL_KEY = "pr-interval";
 
-const debouncedFetchAndPlayAudio = debounce(
-  () => fetchAndPlayAudio(GM_getValue(DING_URL_KEY)),
-  2000,
-  true
-);
-
 function debounce(func, wait, immediate) {
   let timeout;
   return function () {
@@ -44,6 +38,12 @@ function debounce(func, wait, immediate) {
     if (callNow) func.apply(context, args);
   };
 }
+
+const debouncedFetchAndPlayAudio = debounce(
+  () => fetchAndPlayAudio(GM_getValue(DING_URL_KEY)),
+  2000,
+  true
+);
 
 function fetchAndPlayAudio(url) {
   GM_xmlhttpRequest({
@@ -92,6 +92,10 @@ function getPrURL(prLine) {
     .children[0].href;
 }
 
+function isPrAdo(prURL) {
+  return prURL.startsWith("https://dev.azure.com");
+}
+
 function pickUpPr(prLine) {
   const button = getStartButton(prLine);
   button?.click();
@@ -99,6 +103,13 @@ function pickUpPr(prLine) {
 
   const url = getPrURL(prLine);
   window.open(url, "_blank");
+}
+
+function shouldPickUpPr() {
+  const lastPrTime = GM_getValue(LAST_PR_TIME_KEY);
+  const timeDiff = Date.now() - lastPrTime;
+
+  return timeDiff > GM_getValue(PR_INTERVAL_KEY) * 1000;
 }
 
 function startPageObserver() {
@@ -118,15 +129,9 @@ function startPageObserver() {
       return;
     }
 
-    let lastPrTime = GM_getValue(LAST_PR_TIME_KEY);
-    const timeDiff = Date.now() - lastPrTime;
-
-    console.log(
-      `Time diff ${timeDiff} <> ${GM_getValue(PR_INTERVAL_KEY) * 1000}`
-    );
-
-    if (timeDiff > GM_getValue(PR_INTERVAL_KEY) * 1000) {
+    if (shouldPickUpPr()) {
       console.log(`Picking up PR`);
+
       pickUpPr(notStartedLines[0]);
       debouncedFetchAndPlayAudio();
     } else {
@@ -142,21 +147,25 @@ function onPageLoad() {
   startPageObserver();
 }
 
-(function () {
-  "use strict";
-
+function setInitialGM() {
   GM_setValue(
     PR_INTERVAL_KEY,
     GM_getValue(PR_INTERVAL_KEY, DEFAULT_PR_INTERVAL)
   );
   GM_setValue(DING_URL_KEY, GM_getValue(DING_URL_KEY, DEFAULT_DING_URL));
   GM_setValue(LAST_PR_TIME_KEY, GM_getValue(LAST_PR_TIME_KEY, Date.now()));
+}
 
+function registerMenuCommands() {
   GM_registerMenuCommand("Set Ding Sound", () => {
     let dingUrl = window.prompt(
       "Enter the URL of the ding sound (leave empty for default):",
       GM_getValue(DING_URL_KEY, DEFAULT_DING_URL)
     );
+
+    if (!dingUrl) {
+      return;
+    }
 
     if (dingUrl.trim() === "") {
       dingUrl = DEFAULT_DING_URL;
@@ -170,10 +179,19 @@ function onPageLoad() {
       GM_getValue(PR_INTERVAL_KEY, DEFAULT_PR_INTERVAL)
     );
 
+    if (!interval) {
+      return;
+    }
+
     GM_setValue(PR_INTERVAL_KEY, interval);
   });
+}
 
-  console.log();
+(function () {
+  "use strict";
+
+  setInitialGM();
+  registerMenuCommands();
 
   onPageLoad();
 })();
