@@ -100,7 +100,7 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
       (count, str) =>
         count +
         str.split(/\s+|(?=[,.!?;:])|(?<=[,.!?;:])/).filter(Boolean).length,
-      0,
+      0
     );
 
     // Removing string literals from the JSON string to avoid double counting
@@ -197,11 +197,11 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
     const totalCost = completionCost + promptCost;
 
     const costMessage = `Request Cost: $${totalCost.toFixed(
-      3,
+      3
     )}\nPrompt: $${promptCost.toFixed(
-      3,
+      3
     )} (${promptTokens} tokens | estimated: ${estimatedTokens})\nCompletion: $${completionCost.toFixed(
-      3,
+      3
     )} (${completionTokens} tokens)`;
 
     console.log(costMessage);
@@ -221,7 +221,7 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
 
     for (const fileElement of fileElements) {
       const elementFileName = fileElement.querySelector(
-        ".secondary-text.text-ellipsis",
+        ".secondary-text.text-ellipsis"
       ).innerText;
 
       if (elementFileName === fileName) {
@@ -234,7 +234,7 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
 
   function extractCodeFromColumn(columnElement) {
     const changes = columnElement.querySelectorAll(
-      ".repos-diff-contents-row.monospaced-text",
+      ".repos-diff-contents-row.monospaced-text"
     );
 
     const columnChanges = Array.from(changes).map((change) => {
@@ -318,27 +318,33 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
 
   function findLastElementByInnerText(parentElement, innerText) {
     const elements = Array.from(parentElement.querySelectorAll("*")).filter(
-      (el) => el.innerText === innerText,
+      (el) => el.innerText === innerText
     );
     return elements[elements.length - 1];
   }
 
   function getLineElementFromNumber(codeElement, lineNumber) {
-    let numberElements = codeElement.querySelectorAll('span.padding-horizontal-8.text-right.secondary-text[aria-hidden="true"][role="cell"]');
+    let numberElements = codeElement.querySelectorAll(
+      'span.padding-horizontal-8.text-right.secondary-text[aria-hidden="true"][role="cell"]'
+    );
 
     // Case where there's only one column with numbers (eg. new file)
     if (numberElements.length === 0) {
-      numberElements = codeElement.querySelectorAll('span.padding-horizontal-8.text-right.secondary-text[role="cell"]');
+      numberElements = codeElement.querySelectorAll(
+        'span.padding-horizontal-8.text-right.secondary-text[role="cell"]'
+      );
     }
 
     for (const element of numberElements) {
-      const lineNumberElement = element.querySelector('.repos-line-number');
-      if (lineNumberElement && lineNumberElement.dataset.line === String(lineNumber)) {
+      const lineNumberElement = element.querySelector(".repos-line-number");
+      if (
+        lineNumberElement &&
+        lineNumberElement.dataset.line === String(lineNumber)
+      ) {
         return element.parentElement;
       }
     }
   }
-
 
   function addCommentToLine(fileElement, line, comment) {
     // console.log(`adding comment ${line}:${comment}`);
@@ -352,7 +358,7 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
     setTimeout(() => {
       const commentElement = lineElement.nextElementSibling;
       const textArea = commentElement.querySelector(
-        "[id^='__bolt-textfield-input']",
+        "[id^='__bolt-textfield-input']"
       );
       textArea.value = comment;
     }, 200);
@@ -409,7 +415,7 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
 
   function addGPTButtonToNavBar() {
     const navBar = document.querySelector(
-      ".flex-row.rhythm-horizontal-8.flex-center.flex-grow",
+      ".flex-row.rhythm-horizontal-8.flex-center.flex-grow"
     );
 
     const buttonId = GPT_BUTTON_NAVBAR_ID;
@@ -438,7 +444,7 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
 
     navBar.insertBefore(
       createGPTButton(buttonId, estimatedCost),
-      navBar.children[0],
+      navBar.children[0]
     );
 
     const button = navBar.querySelector(`#${buttonId}`);
