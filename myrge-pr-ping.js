@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Myrge PR Ping
+// @name         PR Ping
 // @namespace    http://piu.piuson.com
-// @version      1.1.1
-// @description  Ask ChatGPT to review files on a PR in Azure Pipelines
+// @version      1.1.2
+// @description  Automate many PR functions
 // @author       Piu Piuson
 // @match        https://myrge.co.uk/reviews
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=myrge.co.uk
@@ -13,6 +13,7 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
+// @grant        GM_unregisterMenuCommand
 // ==/UserScript==
 
 const DEFAULT_PR_INTERVAL = 3 * 60;
@@ -22,6 +23,18 @@ const DEFAULT_DING_URL =
 const LAST_PR_TIME_KEY = "last-pr-time";
 const DING_URL_KEY = "ding-url";
 const PR_INTERVAL_KEY = "pr-interval";
+const AUTO_PICK_UP_KEY = "auto-pick-up";
+const AUTO_APPROVE_KEY = "auto-approve";
+
+const ENABLE = "Enable";
+const DISABLE = "Disable";
+
+const AUTO_APPROVE = "Auto Approve";
+const AUTO_PICK_UP = "Auto PickUp";
+
+let autoApproveMenuCommand;
+let autoPickUpMenuCommand;
+
 
 function debounce(func, wait, immediate) {
   let timeout;
@@ -88,8 +101,10 @@ function getStartButton(prLine) {
 }
 
 function getPrURL(prLine) {
-  return prLine.querySelector('[col-id="Title"]').children[0].children[0]
-    .children[0].href;
+  return (
+    prLine?.querySelector('[col-id="Title"]')?.children[0]?.children[0]
+      ?.children[0]?.href || ""
+  );
 }
 
 function isPrAdo(prURL) {
@@ -105,7 +120,7 @@ function pickUpPr(prLine) {
   window.open(url, "_blank");
 }
 
-function shouldPickUpPr() {
+function isTimeToPickUpPr() {
   const lastPrTime = GM_getValue(LAST_PR_TIME_KEY);
   const timeDiff = Date.now() - lastPrTime;
 
@@ -129,10 +144,15 @@ function startPageObserver() {
       return;
     }
 
-    if (shouldPickUpPr()) {
+    if (isTimeToPickUpPr()) {
       console.log(`Picking up PR`);
+      const pr = notStartedLines[0];
 
-      pickUpPr(notStartedLines[0]);
+      if (GM_getValue(AUTO_PICK_UP_KEY)) {
+        pickUpPr(pr);
+        test(pr);
+      }
+
       debouncedFetchAndPlayAudio();
     } else {
       console.log(`NOT picking up PR`);
@@ -154,9 +174,11 @@ function setInitialGM() {
   );
   GM_setValue(DING_URL_KEY, GM_getValue(DING_URL_KEY, DEFAULT_DING_URL));
   GM_setValue(LAST_PR_TIME_KEY, GM_getValue(LAST_PR_TIME_KEY, Date.now()));
+  GM_setValue(AUTO_PICK_UP_KEY, GM_getValue(AUTO_PICK_UP_KEY, true));
+  GM_setValue(AUTO_APPROVE_KEY, GM_getValue(AUTO_PICK_UP_KEY, true));
 }
 
-function registerMenuCommands() {
+function registerStaticMenuCommands() {
   GM_registerMenuCommand("Set Ding Sound", () => {
     let dingUrl = window.prompt(
       "Enter the URL of the ding sound (leave empty for default):",
@@ -187,11 +209,36 @@ function registerMenuCommands() {
   });
 }
 
+function updateDynamicMenuCommends() {
+  GM_unregisterMenuCommand(autoApproveMenuCommand);
+  GM_unregisterMenuCommand(autoPickUpMenuCommand);
+
+  const pickupEnableDisable = GM_getValue(AUTO_PICK_UP_KEY) ? DISABLE : ENABLE;
+  const approveEnableDisable = GM_getValue(AUTO_APPROVE_KEY) ? DISABLE : ENABLE;
+
+  autoApproveMenuCommand = GM_registerMenuCommand(
+    `${pickupEnableDisable} ${AUTO_PICK_UP}`,
+    () => {
+      GM_setValue(AUTO_PICK_UP_KEY, !GM_getValue(AUTO_PICK_UP_KEY));
+      updateDynamicMenuCommends();
+    }
+  );
+  autoPickUpMenuCommand = GM_registerMenuCommand(
+    `${approveEnableDisable} ${AUTO_APPROVE}`,
+    () => {
+      GM_setValue(AUTO_APPROVE_KEY, !GM_getValue(AUTO_APPROVE_KEY));
+      updateDynamicMenuCommends();
+    }
+  );
+}
+
 (function () {
   "use strict";
 
   setInitialGM();
-  registerMenuCommands();
+
+  registerStaticMenuCommands();
+  updateDynamicMenuCommends();
 
   onPageLoad();
 })();
