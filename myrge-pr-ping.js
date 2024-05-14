@@ -24,17 +24,13 @@ const LAST_PR_TIME_KEY = "last-pr-time";
 const DING_URL_KEY = "ding-url";
 const PR_INTERVAL_KEY = "pr-interval";
 const AUTO_PICK_UP_KEY = "auto-pick-up";
-const AUTO_APPROVE_KEY = "auto-approve";
 
 const ENABLE = "Enable";
 const DISABLE = "Disable";
 
-const AUTO_APPROVE = "Auto Approve";
 const AUTO_PICK_UP = "Auto PickUp";
 
-let autoApproveMenuCommand;
 let autoPickUpMenuCommand;
-
 
 function debounce(func, wait, immediate) {
   let timeout;
@@ -129,6 +125,11 @@ function isTimeToPickUpPr() {
   return timeDiff > GM_getValue(PR_INTERVAL_KEY) * 1000;
 }
 
+function isModalDisplayed() {
+  const modal = document.querySelector(".base-modal-backdrop");
+  return modal === null;
+}
+
 function startPageObserver() {
   const observerConfig = { childList: true, subtree: true };
   const observerTarget = document.body;
@@ -151,17 +152,14 @@ function startPageObserver() {
       console.log(`Picking up PR`);
       const prLine = notStartedLines[0];
 
+      debouncedFetchAndPlayAudio();
+
       if (!GM_getValue(AUTO_PICK_UP_KEY)) {
         return;
       }
 
       pickUpPr(prLine);
-        openPrTab(prLine);
-      }
-
-      debouncedFetchAndPlayAudio();
-    } else {
-      console.log(`NOT picking up PR`);
+      openPrTab(prLine);
     }
   });
 
@@ -181,7 +179,6 @@ function setInitialGM() {
   GM_setValue(DING_URL_KEY, GM_getValue(DING_URL_KEY, DEFAULT_DING_URL));
   GM_setValue(LAST_PR_TIME_KEY, GM_getValue(LAST_PR_TIME_KEY, Date.now()));
   GM_setValue(AUTO_PICK_UP_KEY, GM_getValue(AUTO_PICK_UP_KEY, true));
-  GM_setValue(AUTO_APPROVE_KEY, GM_getValue(AUTO_PICK_UP_KEY, true));
 }
 
 function registerStaticMenuCommands() {
@@ -216,23 +213,13 @@ function registerStaticMenuCommands() {
 }
 
 function updateDynamicMenuCommends() {
-  GM_unregisterMenuCommand(autoApproveMenuCommand);
   GM_unregisterMenuCommand(autoPickUpMenuCommand);
 
   const pickupEnableDisable = GM_getValue(AUTO_PICK_UP_KEY) ? DISABLE : ENABLE;
-  const approveEnableDisable = GM_getValue(AUTO_APPROVE_KEY) ? DISABLE : ENABLE;
-
-  autoApproveMenuCommand = GM_registerMenuCommand(
+  autoPickUpMenuCommand = GM_registerMenuCommand(
     `${pickupEnableDisable} ${AUTO_PICK_UP}`,
     () => {
       GM_setValue(AUTO_PICK_UP_KEY, !GM_getValue(AUTO_PICK_UP_KEY));
-      updateDynamicMenuCommends();
-    }
-  );
-  autoPickUpMenuCommand = GM_registerMenuCommand(
-    `${approveEnableDisable} ${AUTO_APPROVE}`,
-    () => {
-      GM_setValue(AUTO_APPROVE_KEY, !GM_getValue(AUTO_APPROVE_KEY));
       updateDynamicMenuCommends();
     }
   );
