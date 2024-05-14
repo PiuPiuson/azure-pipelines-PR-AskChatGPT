@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Azure Pipelines PR AskChatGPT
 // @namespace    http://piu.piuson.com/
-// @version      1.1.1
+// @version      1.1.2
 // @description  Ask ChatGPT to review files on a PR in Azure Pipelines
 // @author       Piu Piuson
 // @downloadURL  https://raw.githubusercontent.com/PiuPiuson/azure-pipelines-PR-AskChatGPT/main/askChatgpt-button.js
@@ -16,13 +16,24 @@
 (function () {
   "use strict";
 
-  const GPT_MODEL_4 = {
-    name: "gpt-4-turbo",
-    cost: {
-      prompt: 10, // Cost per 1M tokens
-      completion: 30, // Cost per 1M tokens
+  const Models = {
+    gpt_4_turbo: {
+      name: "gpt-4-turbo",
+      cost: {
+        prompt: 10, // Cost per 1M tokens
+        completion: 30, // Cost per 1M tokens
+      },
+    },
+    gpt_4o: {
+      name: "gpt-4o",
+      cost: {
+        prompt: 5, // Cost per 1M tokens
+        completion: 15, // Cost per 1M tokens
+      },
     },
   };
+
+  const MODEL = Models.gpt_4o;
 
   const GPT_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 
@@ -117,13 +128,13 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
     const codeTokens = estimateGPT4TokensForJSON(codeJson);
 
     const totalTokens = promptTokens + codeTokens;
-    return (totalTokens / 1000000) * GPT_MODEL_4.cost.prompt;
+    return (totalTokens / 1000000) * MODEL.cost.prompt;
   }
 
   function queryChatGPT(prompt) {
     return new Promise((resolve, reject) => {
       const data = {
-        model: GPT_MODEL_4.name,
+        model: MODEL.name,
         max_tokens: 4096,
         temperature: 0.8,
         response_format: {
@@ -191,9 +202,8 @@ Use UK english. Output a JSON : {<lineNumber>: [<severity, <comment>], ...}
       estimateGPT4TokensForText(SYSTEM_PROMPT) +
       estimateGPT4TokensForJSON(codeJson);
 
-    const completionCost =
-      (completionTokens / 1000000) * GPT_MODEL_4.cost.completion;
-    const promptCost = (promptTokens / 1000000) * GPT_MODEL_4.cost.prompt;
+    const completionCost = (completionTokens / 1000000) * MODEL.cost.completion;
+    const promptCost = (promptTokens / 1000000) * MODEL.cost.prompt;
     const totalCost = completionCost + promptCost;
 
     const costMessage = `Request Cost: $${totalCost.toFixed(
