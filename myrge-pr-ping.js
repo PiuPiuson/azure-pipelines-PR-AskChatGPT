@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PR Ping
 // @namespace    http://piu.piuson.com
-// @version      1.1.2
+// @version      1.1.3
 // @description  Automate many PR functions
 // @author       Piu Piuson
 // @match        https://myrge.co.uk/reviews
@@ -111,13 +111,15 @@ function isPrAdo(prURL) {
   return prURL.startsWith("https://dev.azure.com");
 }
 
+function openPrTab(prLine) {
+  const url = getPrURL(prLine);
+  window.open(url, "_blank");
+}
+
 function pickUpPr(prLine) {
   const button = getStartButton(prLine);
   button?.click();
   GM_setValue(LAST_PR_TIME_KEY, Date.now());
-
-  const url = getPrURL(prLine);
-  window.open(url, "_blank");
 }
 
 function isTimeToPickUpPr() {
@@ -135,8 +137,9 @@ function startPageObserver() {
   const observer = new MutationObserver((mutations) => {
     const prMutations = mutations.filter((mutation) => isPrLine(mutation));
     const prLines = prMutations.map((mutation) => mutation.addedNodes[0]);
+    const adoPRs = prLines.filter((line) => isPrAdo(getPrURL(line)));
 
-    const notStartedLines = prLines.filter(
+    const notStartedLines = adoPRs.filter(
       (line) => getPrStatus(line) === "Not started"
     );
 
@@ -146,11 +149,14 @@ function startPageObserver() {
 
     if (isTimeToPickUpPr()) {
       console.log(`Picking up PR`);
-      const pr = notStartedLines[0];
+      const prLine = notStartedLines[0];
 
-      if (GM_getValue(AUTO_PICK_UP_KEY)) {
-        pickUpPr(pr);
-        test(pr);
+      if (!GM_getValue(AUTO_PICK_UP_KEY)) {
+        return;
+      }
+
+      pickUpPr(prLine);
+        openPrTab(prLine);
       }
 
       debouncedFetchAndPlayAudio();
@@ -163,7 +169,7 @@ function startPageObserver() {
 }
 
 function onPageLoad() {
-  console.log("Pr Ping Running");
+  console.log("Myrge PR Helper Running");
   startPageObserver();
 }
 
