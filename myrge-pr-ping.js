@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PR Ping
 // @namespace    http://piu.piuson.com
-// @version      1.1.3
+// @version      1.1.4
 // @description  Automate many PR functions
 // @author       Piu Piuson
 // @match        https://myrge.co.uk/reviews
@@ -115,7 +115,6 @@ function openPrTab(prLine) {
 function pickUpPr(prLine) {
   const button = getStartButton(prLine);
   button?.click();
-  GM_setValue(LAST_PR_TIME_KEY, Date.now());
 }
 
 function isTimeToPickUpPr() {
@@ -127,7 +126,13 @@ function isTimeToPickUpPr() {
 
 function isModalDisplayed() {
   const modal = document.querySelector(".base-modal-backdrop");
-  return modal === null;
+  return modal !== null;
+}
+
+function closeModal() {
+  const modal = document.querySelector(".base-modal");
+  const noButton = modal?.querySelector("[data-test-id=button]");
+  noButton?.click();
 }
 
 function startPageObserver() {
@@ -148,18 +153,28 @@ function startPageObserver() {
       return;
     }
 
+    if (!GM_getValue(AUTO_PICK_UP_KEY)) {
+      debouncedFetchAndPlayAudio();
+      return;
+    }
+
     if (isTimeToPickUpPr()) {
       console.log(`Picking up PR`);
       const prLine = notStartedLines[0];
 
-      debouncedFetchAndPlayAudio();
-
-      if (!GM_getValue(AUTO_PICK_UP_KEY)) {
-        return;
-      }
-
       pickUpPr(prLine);
-      openPrTab(prLine);
+
+      setTimeout(() => {
+        if (isModalDisplayed()) {
+          console.log("PR has already been picked up by someone else");
+          closeModal();
+        } else {
+          GM_setValue(LAST_PR_TIME_KEY, Date.now());
+
+          openPrTab(prLine);
+          debouncedFetchAndPlayAudio();
+        }
+      }, 4000);
     }
   });
 
