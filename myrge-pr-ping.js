@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PR Ping
 // @namespace    http://piu.piuson.com
-// @version      1.1.4
+// @version      1.1.5
 // @description  Automate many PR functions
 // @author       Piu Piuson
 // @match        https://myrge.co.uk/reviews
@@ -107,9 +107,9 @@ function isPrAdo(prURL) {
   return prURL.startsWith("https://dev.azure.com");
 }
 
-function openPrTab(prLine) {
+function openPrTab(prLine, delay) {
   const url = getPrURL(prLine);
-  window.open(url, "_blank");
+  setTimeout(() => window.open(url, "_blank"), delay);
 }
 
 function pickUpPr(prLine) {
@@ -171,8 +171,8 @@ function startPageObserver() {
         } else {
           GM_setValue(LAST_PR_TIME_KEY, Date.now());
 
-          openPrTab(prLine);
           debouncedFetchAndPlayAudio();
+          openPrTab(prLine, 1000);
         }
       }, 4000);
     }
