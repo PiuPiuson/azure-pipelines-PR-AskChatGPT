@@ -135,47 +135,51 @@ function closeModal() {
   noButton?.click();
 }
 
+function doPrMutationLogic(mutations) {
+  const prMutations = mutations.filter((mutation) => isPrLine(mutation));
+  const prLines = prMutations.map((mutation) => mutation.addedNodes[0]);
+  const adoPRs = prLines.filter((line) => isPrAdo(getPrURL(line)));
+
+  const notStartedLines = adoPRs.filter(
+    (line) => getPrStatus(line) === "Not started"
+  );
+
+  if (notStartedLines.length === 0) {
+    return;
+  }
+
+  if (!GM_getValue(AUTO_PICK_UP_KEY)) {
+    debouncedFetchAndPlayAudio();
+    return;
+  }
+
+  if (isTimeToPickUpPr()) {
+    console.log(`Picking up PR`);
+    const prLine = notStartedLines[0];
+
+    pickUpPr(prLine);
+
+    setTimeout(() => {
+      if (isModalDisplayed()) {
+        console.log("PR has already been picked up by someone else");
+        closeModal();
+      } else {
+        GM_setValue(LAST_PR_TIME_KEY, Date.now());
+
+        debouncedFetchAndPlayAudio();
+        openPrTab(prLine, 1000);
+      }
+    }, 4000);
+  }
+}
+
 function startPageObserver() {
   const observerConfig = { childList: true, subtree: true };
   const observerTarget = document.body;
 
   // Create a MutationObserver to monitor changes to the page
   const observer = new MutationObserver((mutations) => {
-    const prMutations = mutations.filter((mutation) => isPrLine(mutation));
-    const prLines = prMutations.map((mutation) => mutation.addedNodes[0]);
-    const adoPRs = prLines.filter((line) => isPrAdo(getPrURL(line)));
-
-    const notStartedLines = adoPRs.filter(
-      (line) => getPrStatus(line) === "Not started"
-    );
-
-    if (notStartedLines.length === 0) {
-      return;
-    }
-
-    if (!GM_getValue(AUTO_PICK_UP_KEY)) {
-      debouncedFetchAndPlayAudio();
-      return;
-    }
-
-    if (isTimeToPickUpPr()) {
-      console.log(`Picking up PR`);
-      const prLine = notStartedLines[0];
-
-      pickUpPr(prLine);
-
-      setTimeout(() => {
-        if (isModalDisplayed()) {
-          console.log("PR has already been picked up by someone else");
-          closeModal();
-        } else {
-          GM_setValue(LAST_PR_TIME_KEY, Date.now());
-
-          debouncedFetchAndPlayAudio();
-          openPrTab(prLine, 1000);
-        }
-      }, 4000);
-    }
+    doPrMutationLogic(mutations);
   });
 
   observer.observe(observerTarget, observerConfig);
