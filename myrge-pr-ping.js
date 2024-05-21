@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PR Ping
 // @namespace    http://piu.piuson.com
-// @version      1.2.0
+// @version      1.2.1
 // @description  Automate many PR functions
 // @author       Piu Piuson
 // @match        https://myrge.co.uk/reviews
@@ -128,7 +128,7 @@ function isModalDisplayed() {
 
 function closeModal() {
   const modal = document.querySelector(".base-modal");
-  const noButton = modal?.querySelector("[data-test-id=button]");
+  const noButton = modal?.querySelector("[data-test-id=cancel-modal-button]");
   noButton?.click();
 }
 
