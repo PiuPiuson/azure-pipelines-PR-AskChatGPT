@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PR Ping
 // @namespace    http://piu.piuson.com
-// @version      1.1.5
+// @version      1.2.0
 // @description  Automate many PR functions
 // @author       Piu Piuson
 // @match        https://myrge.co.uk/reviews
@@ -96,11 +96,8 @@ function getStartButton(prLine) {
   return prLine.querySelector('[data-icon="play"]').parentElement;
 }
 
-function getPrURL(prLine) {
-  return (
-    prLine?.querySelector('[col-id="Title"]')?.children[0]?.children[0]
-      ?.children[0]?.href || ""
-  );
+function getPrLinkButton(prLine) {
+  return prLine?.querySelector('[col-id="Title"]')?.querySelector("button");
 }
 
 function isPrAdo(prURL) {
@@ -108,8 +105,8 @@ function isPrAdo(prURL) {
 }
 
 function openPrTab(prLine, delay) {
-  const url = getPrURL(prLine);
-  setTimeout(() => window.open(url, "_blank"), delay);
+  const linkButton = getPrLinkButton(prLine);
+  setTimeout(() => linkButton?.click(), delay);
 }
 
 function pickUpPr(prLine) {
@@ -138,9 +135,8 @@ function closeModal() {
 function doPrMutationLogic(mutations) {
   const prMutations = mutations.filter((mutation) => isPrLine(mutation));
   const prLines = prMutations.map((mutation) => mutation.addedNodes[0]);
-  const adoPRs = prLines.filter((line) => isPrAdo(getPrURL(line)));
 
-  const notStartedLines = adoPRs.filter(
+  const notStartedLines = prLines.filter(
     (line) => getPrStatus(line) === "Not started"
   );
 
