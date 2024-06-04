@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PR Ping
 // @namespace    http://piu.piuson.com
-// @version      1.3.1
+// @version      1.4.0
 // @description  Automate many PR functions
 // @author       Piu Piuson
 // @match        https://myrge.co.uk/reviews
@@ -32,6 +32,12 @@ const PICKUP_STATS_KEY = "pickup-stats";
 const ENABLE = "Enable";
 const DISABLE = "Disable";
 const AUTO_PICK_UP = "Auto PickUp";
+
+// ---------- DOM ELEMENT QUERIES -------------
+const QUERY_START_BUTTON = '[data-test-id$="-start-button"]';
+const QUERY_PR_STATUS = '[col-id="pullRequestReviewStatus"]';
+const QUERY_CANCEL_MODAL_BUTTON = "[data-test-id=cancel-modal-button]";
+const QUERY_PR_LINE = ".ag-row";
 
 // ---------- CLASSES -------------
 class PrStats {
@@ -207,14 +213,20 @@ function isPrLine(mutation) {
   return false;
 }
 
+/**
+ * Gets the status of a PR given the PR line
+ * @param {string} prLine
+ */
 function getPrStatus(prLine) {
-  return (
-    prLine.querySelector('[col-id="pullRequestReviewStatus"]')?.innerText || ""
-  );
+  return prLine.querySelector(QUERY_PR_STATUS)?.innerText || "";
 }
 
+/**
+ * Gets the start button from a PR line
+ * @param {string} prLine
+ */
 function getStartButton(prLine) {
-  return prLine.querySelector('[data-icon="play"]').parentElement;
+  return prLine?.querySelector(QUERY_START_BUTTON);
 }
 
 function getPrLinkButton(prLine) {
@@ -240,16 +252,29 @@ function isPrAdo(prURL) {
   return prURL.startsWith("https://dev.azure.com");
 }
 
+/**
+ * Opens the PR from a PR line in a new browser tab
+ * @param {string} prLine
+ */
 function openPrTab(prLine, delay) {
   const url = getPrURL(prLine);
-  setTimeout(() => window.open(url, "_blank"), delay);
+  window.open(url, "_blank");
 }
 
+/**
+ * Starts the PR in the given PRline.
+ * It also disables the event listener on its start button.
+ * @param {string} prLine
+ */
 function pickUpPr(prLine) {
   const button = getStartButton(prLine);
+  button?.removeEventListener("click", onStartButtonClick);
   button?.click();
 }
 
+/**
+ * Checks whether a PR should be picked up
+ */
 function shouldPickupPr() {
   const lastPrTime = GM_getValue(LAST_PR_TIME_KEY);
   const timeDiff = Date.now() - lastPrTime;
@@ -257,24 +282,57 @@ function shouldPickupPr() {
   return timeDiff > GM_getValue(PR_INTERVAL_KEY) * 1000;
 }
 
+/**
+ * Checks whether a modal is being displayed
+ */
 function isModalDisplayed() {
   const modal = document.querySelector(".base-modal-backdrop");
   return modal !== null;
 }
 
+/**
+ * Closes the PR has already been picked up modal
+ */
 function closeModal() {
   const modal = document.querySelector(".base-modal");
-  const noButton = modal?.querySelector("[data-test-id=cancel-modal-button]");
+  const noButton = modal?.querySelector(QUERY_CANCEL_MODAL_BUTTON);
   noButton?.click();
 }
 
+/**
+ * Handler for start button click
+ * It checks every 200ms if the modal is present. If after 4s it is not,
+ * the PR is registered as picked up
+ */
+function onStartButtonClick() {
+  const startTime = Date.now();
+
+  const intervalId = setInterval(() => {
+    const currentTime = Date.now();
+    const elapsedTime = currentTime - startTime;
+
+    if (isModalDisplayed()) {
+      clearInterval(intervalId);
+      return;
+    }
+
+    if (elapsedTime >= 4000) {
+      clearInterval(intervalId);
+
+      GM_setValue(LAST_PR_TIME_KEY, currentTime);
+      Stats.pickedUpPr();
+    }
+  }, 200);
+}
+
 function doPrMutationLogic(mutations) {
-  const prMutations = mutations.filter((mutation) => isPrLine(mutation));
-  const prLines = prMutations.map((mutation) => mutation.addedNodes[0]);
+  const prLines = mutations
+    .filter((mutation) => isPrLine(mutation))
+    .map((mutation) => mutation.addedNodes[0]);
 
   const platformIds = prLines
     .map((line) => getPlatformId(line))
-    .filter((id) => id !== "");
+    .filter((id) => id && id !== "");
 
   if (platformIds.length === 0) {
     return;
@@ -305,18 +363,29 @@ function doPrMutationLogic(mutations) {
 
     setTimeout(() => {
       if (isModalDisplayed()) {
-        console.log("PR has already been picked up by someone else");
         closeModal();
-      } else {
-        GM_setValue(LAST_PR_TIME_KEY, Date.now());
 
-        debouncedFetchAndPlayAudio();
-        openPrTab(prLine, 1000);
-
-        Stats.pickedUpPr();
+        console.log("PR has already been picked up by someone else");
+        return;
       }
+
+      debouncedFetchAndPlayAudio();
+      setTimeout(() => openPrTab(prLine), 1000);
+
+      GM_setValue(LAST_PR_TIME_KEY, Date.now());
+      Stats.pickedUpPr();
     }, 4000);
   }
+}
+
+/**
+ * Attaches the onStartButtonClick event listener to all buttons in the page
+ */
+function attachEventListenerToStartButtons() {
+  const buttons = document.querySelectorAll(QUERY_START_BUTTON);
+  buttons.forEach((button) => {
+    button.addEventListener("click", onStartButtonClick);
+  });
 }
 
 function startPageObserver() {
@@ -325,13 +394,20 @@ function startPageObserver() {
 
   // Create a MutationObserver to monitor changes to the page
   const observer = new MutationObserver((mutations) => {
+    // We attach the event listener to all start buttons on every mutation.
+    // This stops the event listener going away after one button is clicked.
+    attachEventListenerToStartButtons();
+
     doPrMutationLogic(mutations);
   });
 
   observer.observe(observerTarget, observerConfig);
 }
 
-function setInitialGM() {
+/**
+ * Initializes the TamperMonkey storage values to the defaults if they don't exist
+ */
+function setInitialStorageValues() {
   GM_setValue(
     PR_INTERVAL_KEY,
     GM_getValue(PR_INTERVAL_KEY, DEFAULT_PR_INTERVAL)
@@ -341,6 +417,9 @@ function setInitialGM() {
   GM_setValue(AUTO_PICK_UP_KEY, GM_getValue(AUTO_PICK_UP_KEY, true));
 }
 
+/**
+ * Registers the static TamperMonkey menu commands
+ */
 function registerStaticMenuCommands() {
   GM_registerMenuCommand("Set Ding Sound", () => {
     let dingUrl = window.prompt(
@@ -372,6 +451,9 @@ function registerStaticMenuCommands() {
   });
 }
 
+/**
+ * Updates the dynamic TamperMonkey menu commands
+ */
 function updateDynamicMenuCommends() {
   GM_unregisterMenuCommand(autoPickUpMenuCommand);
 
@@ -389,12 +471,14 @@ function updateDynamicMenuCommends() {
 (function () {
   "use strict";
 
-  setInitialGM();
+  setInitialStorageValues();
 
   registerStaticMenuCommands();
   updateDynamicMenuCommends();
 
   startPageObserver();
+
+  // Update the PR stats every second
   setInterval(Stats.display, 1000);
 
   console.log("Myrge PR Helper Running");
