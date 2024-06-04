@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PR Ping
 // @namespace    http://piu.piuson.com
-// @version      1.2.2
+// @version      1.3.0
 // @description  Automate many PR functions
 // @author       Piu Piuson
 // @match        https://myrge.co.uk/reviews
@@ -24,6 +24,7 @@ const LAST_PR_TIME_KEY = "last-pr-time";
 const DING_URL_KEY = "ding-url";
 const PR_INTERVAL_KEY = "pr-interval";
 const AUTO_PICK_UP_KEY = "auto-pick-up";
+const PICKUP_STATS_KEY = "pickup-stats";
 
 const ENABLE = "Enable";
 const DISABLE = "Disable";
@@ -31,6 +32,11 @@ const DISABLE = "Disable";
 const AUTO_PICK_UP = "Auto PickUp";
 
 let autoPickUpMenuCommand;
+
+let PickupStats = GM_getValue(PICKUP_STATS_KEY, {});
+let PlatformIdSet = new Set();
+
+const Today = new Date().toISOString().split("T")[0];
 
 function debounce(func, wait, immediate) {
   let timeout;
@@ -107,6 +113,14 @@ function getPrURL(prLine) {
   );
 }
 
+function getPlatformId(prLine) {
+  return (
+    prLine
+      .querySelector("[data-test-id=flex-container]")
+      ?.innerText?.replace(/\D/g, "") || ""
+  );
+}
+
 function isPrAdo(prURL) {
   return prURL.startsWith("https://dev.azure.com");
 }
@@ -128,6 +142,52 @@ function isTimeToPickUpPr() {
   return timeDiff > GM_getValue(PR_INTERVAL_KEY) * 1000;
 }
 
+function createStatsIfNotExist() {
+  if (document.querySelector(".pr-stats")) {
+    return;
+  }
+
+  const pElement = document.createElement("p");
+  pElement.className = "text-sm pr-stats";
+  pElement.style.fontSize = "12px";
+  pElement.style.marginTop = "-7px";
+  pElement.style.color = "grey";
+
+  const titleDiv = document.querySelector('[data-test-id="page-header-title"]');
+  titleDiv.appendChild(pElement);
+}
+
+function displayPrStats() {
+  createStatsIfNotExist();
+
+  const prs = PickupStats[Today].PRs;
+  const started = PickupStats[Today].Started;
+
+  let scaleFactor = prs / started;
+  let scaledDenominator = scaleFactor.toFixed(1);
+
+  const lastPrTime = GM_getValue(LAST_PR_TIME_KEY);
+  const timeDiff = ((Date.now() - lastPrTime) / 1000).toFixed(0);
+
+  let nextPrTime = GM_getValue(PR_INTERVAL_KEY) - timeDiff;
+  if (nextPrTime < 0) {
+    nextPrTime = 0;
+  }
+
+  const stats = document.querySelector(".pr-stats");
+  stats.innerText = `${started}/${prs} | 1 in ${scaledDenominator} | next: ${Math.floor(
+    nextPrTime / 60
+  )}:${(nextPrTime % 60).toString().padStart(2, "0")}`;
+}
+
+function shouldUpdatePrStats() {
+  const url = window.location.href;
+  const encoded = url.split("#")[1];
+  const options = atob(encoded);
+
+  return options === "(default:(status:Active))";
+}
+
 function isModalDisplayed() {
   const modal = document.querySelector(".base-modal-backdrop");
   return modal !== null;
@@ -139,9 +199,39 @@ function closeModal() {
   noButton?.click();
 }
 
+function updatePrStats(platformIds) {
+  if (PlatformIdSet.size === 0) {
+    PlatformIdSet = new Set(platformIds);
+  }
+
+  const difference = platformIds.filter((id) => !PlatformIdSet.has(id));
+  difference.forEach((item) => PlatformIdSet.add(item));
+
+  if (difference.length === 0) {
+    return;
+  }
+
+  console.log("New PRs:", ...difference);
+
+  PickupStats[Today].PRs += difference.length;
+  GM_setValue(PICKUP_STATS_KEY, PickupStats);
+}
+
 function doPrMutationLogic(mutations) {
   const prMutations = mutations.filter((mutation) => isPrLine(mutation));
   const prLines = prMutations.map((mutation) => mutation.addedNodes[0]);
+
+  const platformIds = prLines
+    .map((line) => getPlatformId(line))
+    .filter((id) => id !== "");
+
+  if (platformIds.length === 0) {
+    return;
+  }
+
+  if (shouldUpdatePrStats()) {
+    updatePrStats(platformIds);
+  }
 
   const notStartedLines = prLines.filter(
     (line) => getPrStatus(line) === "Not started"
@@ -171,6 +261,9 @@ function doPrMutationLogic(mutations) {
 
         debouncedFetchAndPlayAudio();
         openPrTab(prLine, 1000);
+
+        PickupStats[Today].Started += 1;
+        GM_setValue(PICKUP_STATS_KEY, PickupStats);
       }
     }, 4000);
   }
@@ -191,6 +284,15 @@ function startPageObserver() {
 function onPageLoad() {
   console.log("Myrge PR Helper Running");
   startPageObserver();
+
+  if (!PickupStats[Today]) {
+    PickupStats[Today] = {
+      PRs: 0,
+      Started: 0,
+    };
+  }
+
+  setInterval(displayPrStats, 1000);
 }
 
 function setInitialGM() {
@@ -256,4 +358,6 @@ function updateDynamicMenuCommends() {
   updateDynamicMenuCommends();
 
   onPageLoad();
+
+  console.log(PickupStats);
 })();
