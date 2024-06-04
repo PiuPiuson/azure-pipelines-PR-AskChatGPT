@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PR Ping
 // @namespace    http://piu.piuson.com
-// @version      1.3.0
+// @version      1.3.1
 // @description  Automate many PR functions
 // @author       Piu Piuson
 // @match        https://myrge.co.uk/reviews
@@ -40,8 +40,8 @@ class PrStats {
   #scaledDenominator = 0;
 
   constructor() {
-    if (!this.#pickupStats[this.#today]) {
-      this.#pickupStats[this.#today] = {
+    if (!this.#pickupStats[this.#today()]) {
+      this.#pickupStats[this.#today()] = {
         PRs: 0,
         Started: 0,
       };
