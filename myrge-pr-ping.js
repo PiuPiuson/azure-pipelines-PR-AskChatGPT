@@ -16,28 +16,143 @@
 // @grant        GM_unregisterMenuCommand
 // ==/UserScript==
 
+// ---------- DEFAULTS -------------
 const DEFAULT_PR_INTERVAL = 3 * 60;
 const DEFAULT_DING_URL =
   "http://novastar-main.co.hays.tx.us/NovaStar5/sounds/alarm.wav";
 
+// ---------- GM KEYS -------------
 const LAST_PR_TIME_KEY = "last-pr-time";
 const DING_URL_KEY = "ding-url";
 const PR_INTERVAL_KEY = "pr-interval";
 const AUTO_PICK_UP_KEY = "auto-pick-up";
 const PICKUP_STATS_KEY = "pickup-stats";
 
+// ---------- STRINGS -------------
 const ENABLE = "Enable";
 const DISABLE = "Disable";
-
 const AUTO_PICK_UP = "Auto PickUp";
+
+// ---------- CLASSES -------------
+class PrStats {
+  #pickupStats = GM_getValue(PICKUP_STATS_KEY, {});
+  #platformIdSet = new Set();
+  #scaledDenominator = 0;
+
+  constructor() {
+    if (!this.#pickupStats[this.#today]) {
+      this.#pickupStats[this.#today] = {
+        PRs: 0,
+        Started: 0,
+      };
+    }
+  }
+
+  /**
+   * Gets today's date as formatted string
+   */
+  #today = () => new Date().toISOString().split("T")[0];
+
+  /**
+   * Creates the Stats element in the page if it doesn't exist
+   */
+  #createPageElementsIfNotExist = () => {
+    if (document.querySelector(".pr-stats")) {
+      return;
+    }
+
+    const pElement = document.createElement("p");
+    pElement.className = "text-sm pr-stats";
+    pElement.style.fontSize = "12px";
+    pElement.style.marginTop = "-7px";
+    pElement.style.color = "grey";
+
+    const titleDiv = document.querySelector(
+      '[data-test-id="page-header-title"]'
+    );
+    titleDiv.appendChild(pElement);
+  };
+
+  /**
+   * Checks whether or not the PR stats should be updated
+   * If we're not in the correct sorting order for example a lot of erroneous PRs will come in and skew statistics
+   */
+  shouldUpdate = () => {
+    const url = window.location.href;
+    const encoded = url.split("#")[1];
+    const options = atob(encoded);
+
+    return options === "(default:(status:Active))";
+  };
+
+  /**
+   * Displays the PR statistics on page
+   */
+  display = () => {
+    this.#createPageElementsIfNotExist();
+
+    const prs = this.#pickupStats[this.#today()].PRs;
+    const started = this.#pickupStats[this.#today()].Started;
+
+    let scaleFactor = prs / started;
+    this.#scaledDenominator = scaleFactor.toFixed(1);
+
+    const lastPrTime = GM_getValue(LAST_PR_TIME_KEY);
+    const timeDiff = ((Date.now() - lastPrTime) / 1000).toFixed(0);
+
+    let nextPrTime = GM_getValue(PR_INTERVAL_KEY) - timeDiff;
+    if (nextPrTime < 0) {
+      nextPrTime = 0;
+    }
+
+    const stats = document.querySelector(".pr-stats");
+    stats.innerText = `${started}/${prs} | 1 in ${
+      this.#scaledDenominator
+    } | next: ${Math.floor(nextPrTime / 60)}:${(nextPrTime % 60)
+      .toString()
+      .padStart(2, "0")}`;
+  };
+
+  /**
+   * Updates the statistics from PRs in the current view
+   * @param {string[]} platformIds Platform IDs of PRs in current view
+   */
+  update = (platformIds) => {
+    if (this.#platformIdSet.size === 0) {
+      this.#platformIdSet = new Set(platformIds);
+    }
+
+    const difference = platformIds.filter((id) => !this.#platformIdSet.has(id));
+    difference.forEach((item) => this.#platformIdSet.add(item));
+
+    if (difference.length === 0) {
+      return;
+    }
+
+    this.#pickupStats[this.#today()].PRs += difference.length;
+    GM_setValue(PICKUP_STATS_KEY, this.#pickupStats);
+  };
+
+  /**
+   * Call when picking up a PR to update stats accordingly
+   */
+  pickedUpPr = () => {
+    this.#pickupStats[this.#today()].Started += 1;
+    GM_setValue(PICKUP_STATS_KEY, this.#pickupStats);
+  };
+
+  /**
+   * Gets the scaled denominator for picked up PRs (1 in every X)
+   */
+  getScaledDenominator = () => this.#scaledDenominator;
+}
+
+// ---------- GLOBAL VARIABLE INIT -------------
+const Stats = new PrStats();
 
 let autoPickUpMenuCommand;
 
-let PickupStats = GM_getValue(PICKUP_STATS_KEY, {});
-let PlatformIdSet = new Set();
-
-const Today = new Date().toISOString().split("T")[0];
-
+// ---------- FUNCTIONS -------------
 function debounce(func, wait, immediate) {
   let timeout;
   return function () {
@@ -135,57 +250,11 @@ function pickUpPr(prLine) {
   button?.click();
 }
 
-function isTimeToPickUpPr() {
+function shouldPickupPr() {
   const lastPrTime = GM_getValue(LAST_PR_TIME_KEY);
   const timeDiff = Date.now() - lastPrTime;
 
   return timeDiff > GM_getValue(PR_INTERVAL_KEY) * 1000;
-}
-
-function createStatsIfNotExist() {
-  if (document.querySelector(".pr-stats")) {
-    return;
-  }
-
-  const pElement = document.createElement("p");
-  pElement.className = "text-sm pr-stats";
-  pElement.style.fontSize = "12px";
-  pElement.style.marginTop = "-7px";
-  pElement.style.color = "grey";
-
-  const titleDiv = document.querySelector('[data-test-id="page-header-title"]');
-  titleDiv.appendChild(pElement);
-}
-
-function displayPrStats() {
-  createStatsIfNotExist();
-
-  const prs = PickupStats[Today].PRs;
-  const started = PickupStats[Today].Started;
-
-  let scaleFactor = prs / started;
-  let scaledDenominator = scaleFactor.toFixed(1);
-
-  const lastPrTime = GM_getValue(LAST_PR_TIME_KEY);
-  const timeDiff = ((Date.now() - lastPrTime) / 1000).toFixed(0);
-
-  let nextPrTime = GM_getValue(PR_INTERVAL_KEY) - timeDiff;
-  if (nextPrTime < 0) {
-    nextPrTime = 0;
-  }
-
-  const stats = document.querySelector(".pr-stats");
-  stats.innerText = `${started}/${prs} | 1 in ${scaledDenominator} | next: ${Math.floor(
-    nextPrTime / 60
-  )}:${(nextPrTime % 60).toString().padStart(2, "0")}`;
-}
-
-function shouldUpdatePrStats() {
-  const url = window.location.href;
-  const encoded = url.split("#")[1];
-  const options = atob(encoded);
-
-  return options === "(default:(status:Active))";
 }
 
 function isModalDisplayed() {
@@ -197,24 +266,6 @@ function closeModal() {
   const modal = document.querySelector(".base-modal");
   const noButton = modal?.querySelector("[data-test-id=cancel-modal-button]");
   noButton?.click();
-}
-
-function updatePrStats(platformIds) {
-  if (PlatformIdSet.size === 0) {
-    PlatformIdSet = new Set(platformIds);
-  }
-
-  const difference = platformIds.filter((id) => !PlatformIdSet.has(id));
-  difference.forEach((item) => PlatformIdSet.add(item));
-
-  if (difference.length === 0) {
-    return;
-  }
-
-  console.log("New PRs:", ...difference);
-
-  PickupStats[Today].PRs += difference.length;
-  GM_setValue(PICKUP_STATS_KEY, PickupStats);
 }
 
 function doPrMutationLogic(mutations) {
@@ -229,8 +280,8 @@ function doPrMutationLogic(mutations) {
     return;
   }
 
-  if (shouldUpdatePrStats()) {
-    updatePrStats(platformIds);
+  if (Stats.shouldUpdate()) {
+    Stats.update(platformIds);
   }
 
   const notStartedLines = prLines.filter(
@@ -246,7 +297,7 @@ function doPrMutationLogic(mutations) {
     return;
   }
 
-  if (isTimeToPickUpPr()) {
+  if (shouldPickupPr()) {
     console.log(`Picking up PR`);
     const prLine = notStartedLines[0];
 
@@ -262,8 +313,7 @@ function doPrMutationLogic(mutations) {
         debouncedFetchAndPlayAudio();
         openPrTab(prLine, 1000);
 
-        PickupStats[Today].Started += 1;
-        GM_setValue(PICKUP_STATS_KEY, PickupStats);
+        Stats.pickedUpPr();
       }
     }, 4000);
   }
@@ -279,20 +329,6 @@ function startPageObserver() {
   });
 
   observer.observe(observerTarget, observerConfig);
-}
-
-function onPageLoad() {
-  console.log("Myrge PR Helper Running");
-  startPageObserver();
-
-  if (!PickupStats[Today]) {
-    PickupStats[Today] = {
-      PRs: 0,
-      Started: 0,
-    };
-  }
-
-  setInterval(displayPrStats, 1000);
 }
 
 function setInitialGM() {
@@ -349,6 +385,7 @@ function updateDynamicMenuCommends() {
   );
 }
 
+// ---------- SCRIPT ENTRY POINT -------------
 (function () {
   "use strict";
 
@@ -357,7 +394,8 @@ function updateDynamicMenuCommends() {
   registerStaticMenuCommands();
   updateDynamicMenuCommends();
 
-  onPageLoad();
+  startPageObserver();
+  setInterval(Stats.display, 1000);
 
-  console.log(PickupStats);
+  console.log("Myrge PR Helper Running");
 })();
