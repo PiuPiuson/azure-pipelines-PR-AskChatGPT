@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PR Ping
 // @namespace    http://piu.piuson.com
-// @version      1.4.0
+// @version      1.4.1
 // @description  Automate many PR functions
 // @author       Piu Piuson
 // @match        https://myrge.co.uk/reviews
@@ -21,12 +21,12 @@ const DEFAULT_PR_INTERVAL = 3 * 60;
 const DEFAULT_DING_URL =
   "http://novastar-main.co.hays.tx.us/NovaStar5/sounds/alarm.wav";
 
-// ---------- GM KEYS -------------
-const LAST_PR_TIME_KEY = "last-pr-time";
-const DING_URL_KEY = "ding-url";
-const PR_INTERVAL_KEY = "pr-interval";
-const AUTO_PICK_UP_KEY = "auto-pick-up";
-const PICKUP_STATS_KEY = "pickup-stats";
+// ---------- TM STORAGE KEYS -------------
+const KEY_LAST_PR_TIME = "last-pr-time";
+const KEY_DING_URL = "ding-url";
+const KEY_PICKUP_INTERVAL = "pr-interval";
+const KEY_AUTO_PICK_UP = "auto-pick-up";
+const KEY_PICKUP_STATS = "pickup-stats";
 
 // ---------- STRINGS -------------
 const ENABLE = "Enable";
@@ -40,14 +40,121 @@ const QUERY_CANCEL_MODAL_BUTTON = "[data-test-id=cancel-modal-button]";
 const QUERY_PR_LINE = ".ag-row";
 
 // ---------- CLASSES -------------
+class TamperMonkey {
+  #autoPickUpMenuCommand;
+
+  constructor() {
+    this.setInitialStorageValues();
+  }
+
+  /**
+   * Registers the static menu commands
+   */
+  registerStaticMenuCommands() {
+    GM_registerMenuCommand("Set Ding Sound", () => {
+      let dingUrl = window.prompt(
+        "Enter the URL of the ding sound:",
+        this.dingUrl || DEFAULT_DING_URL
+      );
+
+      if (!dingUrl) {
+        return;
+      }
+
+      if (dingUrl.trim() === "") {
+        dingUrl = DEFAULT_DING_URL;
+      }
+      this.dingUrl = dingUrl;
+    });
+
+    GM_registerMenuCommand("Set Pickup Interval", () => {
+      let interval = window.prompt(
+        "Enter how often a PR should be picked up (in seconds):",
+        this.pickupInterval
+      );
+
+      if (!interval) {
+        return;
+      }
+
+      this.pickupInterval = interval;
+    });
+  }
+
+  /**
+   * Registers and/or updates the dynamic menu commands
+   */
+  updateDynamicMenuCommends() {
+    GM_unregisterMenuCommand(this.#autoPickUpMenuCommand);
+
+    const pickupEnableDisable = this.autoPickupEnabled ? DISABLE : ENABLE;
+
+    this.#autoPickUpMenuCommand = GM_registerMenuCommand(
+      `${pickupEnableDisable} ${AUTO_PICK_UP}`,
+      () => {
+        this.autoPickupEnabled = !this.autoPickupEnabled;
+        this.updateDynamicMenuCommends();
+      }
+    );
+  }
+
+  /**
+   * Initializes the storage values to their defaults if they don't exist
+   */
+  setInitialStorageValues() {
+    GM_setValue(
+      KEY_PICKUP_INTERVAL,
+      GM_getValue(KEY_PICKUP_INTERVAL, DEFAULT_PR_INTERVAL)
+    );
+    GM_setValue(KEY_DING_URL, GM_getValue(KEY_DING_URL, DEFAULT_DING_URL));
+    GM_setValue(KEY_LAST_PR_TIME, GM_getValue(KEY_LAST_PR_TIME, Date.now()));
+    GM_setValue(KEY_AUTO_PICK_UP, GM_getValue(KEY_AUTO_PICK_UP, true));
+  }
+
+  get lastPrTime() {
+    return GM_getValue(KEY_LAST_PR_TIME);
+  }
+  set lastPrTime(time) {
+    GM_setValue(KEY_LAST_PR_TIME, time);
+  }
+
+  get dingUrl() {
+    return GM_getValue(KEY_DING_URL);
+  }
+  set dingUrl(url) {
+    GM_setValue(KEY_DING_URL, url);
+  }
+
+  get pickupInterval() {
+    return GM_getValue(KEY_PICKUP_INTERVAL);
+  }
+  set pickupInterval(interval) {
+    GM_setValue(KEY_PICKUP_INTERVAL, interval);
+  }
+
+  get autoPickupEnabled() {
+    return GM_getValue(KEY_AUTO_PICK_UP);
+  }
+  set autoPickupEnabled(enabled) {
+    GM_setValue(KEY_AUTO_PICK_UP, enabled);
+  }
+
+  get pickupStats() {
+    return GM_getValue(KEY_PICKUP_STATS);
+  }
+  set pickupStats(stats) {
+    GM_setValue(KEY_PICKUP_STATS, stats);
+  }
+}
+const TM = new TamperMonkey();
+
 class PrStats {
-  #pickupStats = GM_getValue(PICKUP_STATS_KEY, {});
   #platformIdSet = new Set();
   #scaledDenominator = 0;
 
   constructor() {
-    if (!this.#pickupStats[this.#today()]) {
-      this.#pickupStats[this.#today()] = {
+    if (!TM.pickupStats[this.#today()]) {
+      TM.pickupStats[this.#today()] = {
         PRs: 0,
         Started: 0,
       };
@@ -97,16 +204,15 @@ class PrStats {
   display = () => {
     this.#createPageElementsIfNotExist();
 
-    const prs = this.#pickupStats[this.#today()].PRs;
-    const started = this.#pickupStats[this.#today()].Started;
+    const prs = TM.pickupStats[this.#today()].PRs;
+    const started = TM.pickupStats[this.#today()].Started;
 
     let scaleFactor = prs / started;
     this.#scaledDenominator = scaleFactor.toFixed(1);
 
-    const lastPrTime = GM_getValue(LAST_PR_TIME_KEY);
-    const timeDiff = ((Date.now() - lastPrTime) / 1000).toFixed(0);
+    const timeDiff = ((Date.now() - TM.lastPrTime) / 1000).toFixed(0);
 
-    let nextPrTime = GM_getValue(PR_INTERVAL_KEY) - timeDiff;
+    let nextPrTime = TM.pickupInterval - timeDiff;
     if (nextPrTime < 0) {
       nextPrTime = 0;
     }
@@ -135,16 +241,14 @@ class PrStats {
       return;
     }
 
-    this.#pickupStats[this.#today()].PRs += difference.length;
-    GM_setValue(PICKUP_STATS_KEY, this.#pickupStats);
+    TM.pickupStats[this.#today()].PRs += difference.length;
   };
 
   /**
    * Call when picking up a PR to update stats accordingly
    */
   pickedUpPr = () => {
-    this.#pickupStats[this.#today()].Started += 1;
-    GM_setValue(PICKUP_STATS_KEY, this.#pickupStats);
+    TM.pickupStats[this.#today()].Started += 1;
   };
 
   /**
@@ -152,11 +256,7 @@ class PrStats {
    */
   getScaledDenominator = () => this.#scaledDenominator;
 }
-
-// ---------- GLOBAL VARIABLE INIT -------------
 const Stats = new PrStats();
-
-let autoPickUpMenuCommand;
 
 // ---------- FUNCTIONS -------------
 function debounce(func, wait, immediate) {
@@ -176,7 +276,7 @@ function debounce(func, wait, immediate) {
 }
 
 const debouncedFetchAndPlayAudio = debounce(
-  () => fetchAndPlayAudio(GM_getValue(DING_URL_KEY)),
+  () => fetchAndPlayAudio(TM.dingUrl),
   2000,
   true
 );
@@ -276,10 +376,9 @@ function pickUpPr(prLine) {
  * Checks whether a PR should be picked up
  */
 function shouldPickupPr() {
-  const lastPrTime = GM_getValue(LAST_PR_TIME_KEY);
-  const timeDiff = Date.now() - lastPrTime;
+  const timeDiff = Date.now() - TM.lastPrTime;
 
-  return timeDiff > GM_getValue(PR_INTERVAL_KEY) * 1000;
+  return timeDiff > TM.pickupInterval * 1000;
 }
 
 /**
@@ -319,7 +418,7 @@ function onStartButtonClick() {
     if (elapsedTime >= 4000) {
       clearInterval(intervalId);
 
-      GM_setValue(LAST_PR_TIME_KEY, currentTime);
+      TM.lastPrTime = currentTime;
       Stats.pickedUpPr();
     }
   }, 200);
@@ -350,7 +449,7 @@ function doPrMutationLogic(mutations) {
     return;
   }
 
-  if (!GM_getValue(AUTO_PICK_UP_KEY)) {
+  if (!TM.autoPickupEnabled) {
     debouncedFetchAndPlayAudio();
     return;
   }
@@ -372,7 +471,7 @@ function doPrMutationLogic(mutations) {
       debouncedFetchAndPlayAudio();
       setTimeout(() => openPrTab(prLine), 1000);
 
-      GM_setValue(LAST_PR_TIME_KEY, Date.now());
+      TM.lastPrTime = Date.now();
       Stats.pickedUpPr();
     }, 4000);
   }
@@ -404,77 +503,12 @@ function startPageObserver() {
   observer.observe(observerTarget, observerConfig);
 }
 
-/**
- * Initializes the TamperMonkey storage values to the defaults if they don't exist
- */
-function setInitialStorageValues() {
-  GM_setValue(
-    PR_INTERVAL_KEY,
-    GM_getValue(PR_INTERVAL_KEY, DEFAULT_PR_INTERVAL)
-  );
-  GM_setValue(DING_URL_KEY, GM_getValue(DING_URL_KEY, DEFAULT_DING_URL));
-  GM_setValue(LAST_PR_TIME_KEY, GM_getValue(LAST_PR_TIME_KEY, Date.now()));
-  GM_setValue(AUTO_PICK_UP_KEY, GM_getValue(AUTO_PICK_UP_KEY, true));
-}
-
-/**
- * Registers the static TamperMonkey menu commands
- */
-function registerStaticMenuCommands() {
-  GM_registerMenuCommand("Set Ding Sound", () => {
-    let dingUrl = window.prompt(
-      "Enter the URL of the ding sound (leave empty for default):",
-      GM_getValue(DING_URL_KEY, DEFAULT_DING_URL)
-    );
-
-    if (!dingUrl) {
-      return;
-    }
-
-    if (dingUrl.trim() === "") {
-      dingUrl = DEFAULT_DING_URL;
-    }
-    GM_setValue(DING_URL_KEY, dingUrl);
-  });
-
-  GM_registerMenuCommand("Set Pickup Interval", () => {
-    let interval = window.prompt(
-      "Enter how often a PR should be picked up (in seconds):",
-      GM_getValue(PR_INTERVAL_KEY, DEFAULT_PR_INTERVAL)
-    );
-
-    if (!interval) {
-      return;
-    }
-
-    GM_setValue(PR_INTERVAL_KEY, interval);
-  });
-}
-
-/**
- * Updates the dynamic TamperMonkey menu commands
- */
-function updateDynamicMenuCommends() {
-  GM_unregisterMenuCommand(autoPickUpMenuCommand);
-
-  const pickupEnableDisable = GM_getValue(AUTO_PICK_UP_KEY) ? DISABLE : ENABLE;
-  autoPickUpMenuCommand = GM_registerMenuCommand(
-    `${pickupEnableDisable} ${AUTO_PICK_UP}`,
-    () => {
-      GM_setValue(AUTO_PICK_UP_KEY, !GM_getValue(AUTO_PICK_UP_KEY));
-      updateDynamicMenuCommends();
-    }
-  );
-}
-
 // ---------- SCRIPT ENTRY POINT -------------
 (function () {
   "use strict";
 
-  setInitialStorageValues();
-
-  registerStaticMenuCommands();
-  updateDynamicMenuCommends();
+  TM.registerStaticMenuCommands();
+  TM.updateDynamicMenuCommends();
 
   startPageObserver();
 
