@@ -38,6 +38,7 @@ const QUERY_START_BUTTON = '[data-test-id$="-start-button"]';
 const QUERY_PR_STATUS = '[col-id="pullRequestReviewStatus"]';
 const QUERY_CANCEL_MODAL_BUTTON = "[data-test-id=cancel-modal-button]";
 const QUERY_PR_LINE = ".ag-row";
+const QUERY_PLATFORM_ID = "[data-test-id=flex-container]";
 
 // ---------- CLASSES -------------
 class TamperMonkey {
@@ -338,21 +339,36 @@ function getPrLinkButton(prLine) {
   return prLine?.querySelector('[col-id="Title"]')?.querySelector("button");
 }
 
+/**
+ * Gets the external URL of a PR given the PR line
+ * @param {Element} prLine
+ */
 function getPrURL(prLine) {
-  return (
-    prLine?.querySelector('[col-id="Title"]')?.children[0]?.children[0]
-      ?.children[0]?.href || ""
-  );
+  return prLine?.querySelector('[col-id="Title"]')?.querySelector("a").href;
 }
 
+/**
+ * Gets the Myrge Platform ID of a PR given its line
+ * @param {Element} prLine
+ */
 function getPlatformId(prLine) {
   return (
-    prLine
-      .querySelector("[data-test-id=flex-container]")
-      ?.innerText?.replace(/\D/g, "") || ""
+    prLine.querySelector(QUERY_PLATFORM_ID)?.innerText?.replace(/\D/g, "") || ""
   );
 }
 
+/**
+ * Gets the Myrge platform PR Url from a PR line
+ * @param {Element} prLine
+ */
+function getPrMyrgeUrl(prLine) {
+  return prLine.querySelector(QUERY_PLATFORM_ID)?.querySelector("a").href;
+}
+
+/**
+ * Checks whether a PR is AzureDevOps given its URL
+ * @param {string} prURL
+ */
 function isPrAdo(prURL) {
   return prURL.startsWith("https://dev.azure.com");
 }
