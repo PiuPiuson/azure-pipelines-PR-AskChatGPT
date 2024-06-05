@@ -152,19 +152,22 @@ class PrStats {
   #platformIdSet = new Set();
   #scaledDenominator = 0;
 
+  /**
+   * Today's date as formatted string
+   */
+  #today = new Date().toISOString().split("T")[0];
+
   constructor() {
-    if (!TM.pickupStats[this.#today()]) {
-      TM.pickupStats[this.#today()] = {
+    if (!TM.pickupStats[this.#today]) {
+      const stats = TM.pickupStats;
+      stats[this.#today] = {
         PRs: 0,
         Started: 0,
       };
+
+      TM.pickupStats = stats;
     }
   }
-
-  /**
-   * Gets today's date as formatted string
-   */
-  #today = () => new Date().toISOString().split("T")[0];
 
   /**
    * Creates the Stats element in the page if it doesn't exist
@@ -204,8 +207,8 @@ class PrStats {
   display = () => {
     this.#createPageElementsIfNotExist();
 
-    const prs = TM.pickupStats[this.#today()].PRs;
-    const started = TM.pickupStats[this.#today()].Started;
+    const prs = TM.pickupStats[this.#today].PRs;
+    const started = TM.pickupStats[this.#today].Started;
 
     let scaleFactor = prs / started;
     this.#scaledDenominator = scaleFactor.toFixed(1);
@@ -241,14 +244,14 @@ class PrStats {
       return;
     }
 
-    TM.pickupStats[this.#today()].PRs += difference.length;
+    TM.pickupStats[this.#today].PRs += difference.length;
   };
 
   /**
    * Call when picking up a PR to update stats accordingly
    */
   pickedUpPr = () => {
-    TM.pickupStats[this.#today()].Started += 1;
+    TM.pickupStats[this.#today].Started += 1;
   };
 
   /**
