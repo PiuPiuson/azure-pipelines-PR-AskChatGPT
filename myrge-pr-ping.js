@@ -149,13 +149,12 @@ class TamperMonkey {
 const TM = new TamperMonkey();
 
 class PrStats {
-  #platformIdSet = new Set();
-  #scaledDenominator = 0;
-
-  /**
-   * Today's date as formatted string
-   */
+  /** Today's date as formatted string */
   #today = new Date().toISOString().split("T")[0];
+  /** Set containing the platformIDs of all PRs we have seen since page load */
+  #platformIdSet = new Set();
+  /** The scaled denominator for picked up PRs (1 every X) */
+  #scaledDenominator = 0;
 
   constructor() {
     if (!TM.pickupStats[this.#today]) {
@@ -164,7 +163,6 @@ class PrStats {
         PRs: 0,
         Started: 0,
       };
-
       TM.pickupStats = stats;
     }
   }
@@ -244,14 +242,18 @@ class PrStats {
       return;
     }
 
-    TM.pickupStats[this.#today].PRs += difference.length;
+    const stats = TM.pickupStats;
+    stats[this.#today].PRs += difference.length;
+    TM.pickupStats = stats;
   };
 
   /**
    * Call when picking up a PR to update stats accordingly
    */
   pickedUpPr = () => {
-    TM.pickupStats[this.#today].Started += 1;
+    const stats = TM.pickupStats;
+    stats[this.#today].Started += 1;
+    TM.pickupStats = stats;
   };
 
   /**
@@ -519,4 +521,5 @@ function startPageObserver() {
   setInterval(Stats.display, 1000);
 
   console.log("Myrge PR Helper Running");
+  // TM.modifyPickupStats("2024-06-05", { PRs: 0, Started: 0 });
 })();
