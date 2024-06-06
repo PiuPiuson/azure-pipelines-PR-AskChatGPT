@@ -17,7 +17,7 @@
 // ==/UserScript==
 
 // ---------- DEFAULTS -------------
-const DEFAULT_PR_INTERVAL = 3 * 60;
+const DEFAULT_PICKUP_INTERVAL = 3 * 60;
 const DEFAULT_DING_URL =
   "http://novastar-main.co.hays.tx.us/NovaStar5/sounds/alarm.wav";
 
@@ -103,13 +103,10 @@ class TamperMonkey {
    * Initializes the storage values to their defaults if they don't exist
    */
   setInitialStorageValues() {
-    GM_setValue(
-      KEY_PICKUP_INTERVAL,
-      GM_getValue(KEY_PICKUP_INTERVAL, DEFAULT_PR_INTERVAL)
-    );
-    GM_setValue(KEY_DING_URL, GM_getValue(KEY_DING_URL, DEFAULT_DING_URL));
-    GM_setValue(KEY_LAST_PR_TIME, GM_getValue(KEY_LAST_PR_TIME, Date.now()));
-    GM_setValue(KEY_AUTO_PICK_UP, GM_getValue(KEY_AUTO_PICK_UP, true));
+    this.pickupInterval = this.pickupInterval || DEFAULT_PICKUP_INTERVAL;
+    this.dingUrl = this.dingUrl || DEFAULT_DING_URL;
+    this.lastPrTime = this.lastPrTime || Date.now();
+    this.autoPickupEnabled = this.autoPickupEnabled || false;
     this.pickupStats = this.pickupStats || {};
   }
 
