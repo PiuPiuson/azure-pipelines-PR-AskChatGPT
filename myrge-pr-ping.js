@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PR Ping
 // @namespace    http://piu.piuson.com
-// @version      1.4.1
+// @version      1.4.2
 // @description  Automate many PR functions
 // @author       Piu Piuson
 // @match        https://myrge.co.uk/reviews
@@ -110,6 +110,7 @@ class TamperMonkey {
     GM_setValue(KEY_DING_URL, GM_getValue(KEY_DING_URL, DEFAULT_DING_URL));
     GM_setValue(KEY_LAST_PR_TIME, GM_getValue(KEY_LAST_PR_TIME, Date.now()));
     GM_setValue(KEY_AUTO_PICK_UP, GM_getValue(KEY_AUTO_PICK_UP, true));
+    this.pickupStats = this.pickupStats || {};
   }
 
   get lastPrTime() {
@@ -377,7 +378,7 @@ function isPrAdo(prURL) {
  * Opens the PR from a PR line in a new browser tab
  * @param {string} prLine
  */
-function openPrTab(prLine, delay) {
+function openPrTab(prLine) {
   const url = getPrURL(prLine);
   window.open(url, "_blank");
 }
@@ -475,7 +476,10 @@ function doPrMutationLogic(mutations) {
     return;
   }
 
-  if (shouldPickupPr()) {
+  if (!shouldPickupPr()) {
+    return;
+  }
+
     console.log(`Picking up PR`);
     const prLine = notStartedLines[0];
 
