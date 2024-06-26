@@ -477,26 +477,25 @@ function doPrMutationLogic(mutations) {
     return;
   }
 
-    console.log(`Picking up PR`);
-    const prLine = notStartedLines[0];
+  console.log(`Picking up PR`);
+  const prLine = notStartedLines[0];
 
-    pickUpPr(prLine);
+  pickUpPr(prLine);
 
-    setTimeout(() => {
-      if (isModalDisplayed()) {
-        closeModal();
+  setTimeout(() => {
+    if (isModalDisplayed()) {
+      closeModal();
 
-        console.log("PR has already been picked up by someone else");
-        return;
-      }
+      console.log("PR has already been picked up by someone else");
+      return;
+    }
 
-      debouncedFetchAndPlayAudio();
-      setTimeout(() => openPrTab(prLine), 1000);
+    debouncedFetchAndPlayAudio();
+    setTimeout(() => openPrTab(prLine), 1000);
 
-      TM.lastPrTime = Date.now();
-      Stats.pickedUpPr();
-    }, 4000);
-  }
+    TM.lastPrTime = Date.now();
+    Stats.pickedUpPr();
+  }, 4000);
 }
 
 /**
