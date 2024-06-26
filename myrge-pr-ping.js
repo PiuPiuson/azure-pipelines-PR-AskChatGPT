@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PR Ping
 // @namespace    http://piu.piuson.com
-// @version      1.4.2
+// @version      1.4.3
 // @description  Automate many PR functions
 // @author       Piu Piuson
 // @match        https://myrge.co.uk/reviews
@@ -443,6 +443,29 @@ function onStartButtonClick() {
   }, 200);
 }
 
+const debounceStartPr = debounce(
+  (prLine) => {
+    pickUpPr(prLine);
+
+    setTimeout(() => {
+      if (isModalDisplayed()) {
+        closeModal();
+
+        console.log("PR has already been picked up by someone else");
+        return;
+      }
+
+      debouncedFetchAndPlayAudio();
+      setTimeout(() => openPrTab(prLine), 1000);
+
+      TM.lastPrTime = Date.now();
+      Stats.pickedUpPr();
+    }, 4000);
+  },
+  10000,
+  true
+);
+
 function doPrMutationLogic(mutations) {
   const prLines = mutations
     .filter((mutation) => isPrLine(mutation))
@@ -480,22 +503,7 @@ function doPrMutationLogic(mutations) {
   console.log(`Picking up PR`);
   const prLine = notStartedLines[0];
 
-  pickUpPr(prLine);
-
-  setTimeout(() => {
-    if (isModalDisplayed()) {
-      closeModal();
-
-      console.log("PR has already been picked up by someone else");
-      return;
-    }
-
-    debouncedFetchAndPlayAudio();
-    setTimeout(() => openPrTab(prLine), 1000);
-
-    TM.lastPrTime = Date.now();
-    Stats.pickedUpPr();
-  }, 4000);
+  debounceStartPr(prLine);
 }
 
 /**
